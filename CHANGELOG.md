@@ -38,6 +38,16 @@
   调度器租户传播、事件订阅持久化；版本治理文档（`docs/spec-versioning.md`：
   HC-02 兼容承诺 + 1.x 只增不删三承诺）。
 
+### 性能基线（roadmap-v3 B8c）
+
+- **四基准脚本**（`scripts/perf/`）：线性 50 节点 / 并行 8 分支 / 10 万行管道 /
+  SSE 1000 事件——全栈真实 uvicorn + `wfp_sdk` 口径，两遍法（计时遍 +
+  tracemalloc 内存遍），p50/p95 nearest-rank；原始 JSON 结果随批归档
+  （`.codeartsdoer/specs/roadmap_b8c_perf_baseline/results/`）。
+- **基线文档**（`docs/benchmark.md`）：环境声明、四表汇总、已知特性三条
+  （local_file 检查点 O(n²) 重解析 / 共享状态链级累缩 / 执行期事件循环占用）、
+  合成数据标注与复现命令。
+
 ### 门禁口径（v0.2.0 实测）
 
 - 后端 pytest：**3468 collected（3465 passed + 3 skipped），exit 0**。

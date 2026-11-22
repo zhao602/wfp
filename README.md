@@ -114,6 +114,7 @@ npx tsc --noEmit   # 类型检查（13 基线错误为已知存量，口径零�
 | [docs/config.md](docs/config.md) | 配置开关矩阵与环境变量映射 |
 | [docs/api-reference.md](docs/api-reference.md) | API 端点清单（路径前缀 / 认证要求 / 错误码口径） |
 | [docs/deploy.md](docs/deploy.md) | 部署指南（源码 / Docker Compose） |
+| [docs/benchmark.md](docs/benchmark.md) | 性能基线（四基准 / 两遍法口径 / 复现命令） |
 | [docs/repo-release.md](docs/repo-release.md) | 仓库推送与发布 runbook（remote / tag / CI） |
 | [docs/testing.md](docs/testing.md) | 测试运行说明 |
 | [docs/langgraph-equivalence-matrix.md](docs/langgraph-equivalence-matrix.md) | 双运行时等价矩阵与边界（内置引擎 × LangGraph） |
