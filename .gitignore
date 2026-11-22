@@ -33,6 +33,9 @@ venv/
 node_modules/
 web/dist/
 web/coverage/
+# Playwright e2e 运行产物（B8d：失败上下文/trace 归档不入库）
+web/test-results/
+web/playwright-report/
 
 # IDE
 .idea/

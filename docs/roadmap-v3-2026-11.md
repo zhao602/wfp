@@ -220,18 +220,21 @@ T1 独立；A5 独立；S2 独立（可随时插入）
 | A5 | 无生产流量样本，性能目标以合成数据为准 | 有真实样本后需重跑 P1 基线并修订阈值 |
 | A6 | SSO、双运行时子集、向量检索等「骨架/子集」判断基于静态代码阅读，未做渗透或压测验证 | 若已实现，相应条目降级为文档任务（成本可省 3–8 人日） |
 
-# 附录 B 度量基线（2026-11-22 实测）
+# 附录 B 度量基线（2026-11-22 B8d 出口刷新；口径逐行注明）
 
-| 项 | 值 | 来源 |
+| 项 | 值 | 来源/口径 |
 |---|---|---|
-| 后端规模 | 511 个 `.py` / 75,084 行 | `find`/`wc` 实测 |
-| 前端规模 | 156 个 `.ts`/`.tsx`（不含测试）/ 31,505 行；测试文件 123 个 | 同上 |
-| API | 20 个路由文件 / 139 个端点 | `grep @router.` |
+| 后端规模 | `src/` 511 个 `.py` / 59,514 行 | `Get-ChildItem`/逐文件计行实测 |
+| 测试与工具代码 | `tests/` 181 个 `.py`；`scripts/` 10 个 `.py`（含 B8c `scripts/perf/` 6 个） | 同上 |
+| 前端规模 | `web/src/` 非测试 156 个 `.ts`/`.tsx` / 28,841 行；vitest 测试 123 文件；e2e `web/e2e/` 8 文件 + `web/playwright.config.ts`（B8d 新增） | 同上 |
+| API | 顶层路由文件 19 个（`routers/` 递归含 `governance/` 子目录 32 个 `.py`）/ 139 个端点 | `@router.(get\|post\|put\|delete\|patch)` 递归计数 |
 | 管理面板 | 18 项（4 组） | `web/src/admin/menuConfig.ts` |
 | 范例 | 12 套 / 16 个 YAML | `examples/` |
-| 文档 | 43 篇（含本文） | `docs/*.md` |
-| 测试 | 后端 3431（3428 passed + 3 skipped，B7 T1 基线）；前端 123 文件 | B7 出口记录、`find` |
-| 工程设施 | CI（ruff + pytest + tsc + vitest + 范例校验）、`wfp-check`、Dockerfile、compose | `.github/workflows/`、根目录 |
-| 缺失项 | 无 `LICENSE`、无 git remote、无 e2e、无性能基线、`/metrics` 为 JSON | 实测 |
+| 文档 | 47 篇（含本文与并行会话已落档的长期执行方案） | `docs/*.md` |
+| 测试 | 后端 pytest **3468**（3465 passed + 3 skipped，exit 0，B8d 复测 821.55s）；前端 vitest **1007+13** / 123 文件；e2e Playwright **6 用例**（5 路径，连续 10 次全绿） | 各批出口记录 + B8d 出口记录 |
+| 工程设施 | CI（ruff + pytest + tsc + vitest + 范例校验）、`wfp-check`、Dockerfile、compose、**Playwright e2e 套件（B8d）**、性能基准脚本（B8c） | `.github/workflows/`、`web/playwright.config.ts`、`scripts/perf/` |
+| 性能基线 | linear_50 p95=21759.9ms / parallel_8 p95=15872.8ms / pipeline_100k p95=27281.2ms·峰值 247.8MB / sse_1000 p95=85.3ms | `docs/benchmark.md`（B8c 实测） |
+| 已知缺陷登记 | D1 订阅管理器全运行时未装配（`/subscriptions` 恒 503，e2e 缺陷断言锁定）；D2 StrictMode dev 持久化坏死（B8d 已修复） | B8d exit-record §4 |
+| 缺失项 | git remote / CI 凭据（PyPI 发布同批移交）；`/metrics` 仍为 JSON | 实测 |
 
-> 说明：B7 尚未收口，测试数与端点数会在收口后小幅变化；以当次 `pytest -q` 与 CI 结果为准，本文数字仅作基线。
+> 说明：B7/B8a/B8b/B8c/B8d 已收口落 `main`（6925074 为 B8c 提交；B8d 提交哈希见其出口记录）；测试数以当次全量复测为准。短期池仅余 B8e（A5 边界成文）。

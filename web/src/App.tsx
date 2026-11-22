@@ -492,9 +492,10 @@ export default function App() {
     return () => {
       document.removeEventListener("visibilitychange", flushWhenHidden);
       window.removeEventListener("beforeunload", flushBeforeUnload);
-      // 卸载兜底：flush 落盘 pending 后停用（防后续调度悬挂）
+      // 卸载兜底：flush 落盘 pending。不停用（dispose）——ref 持有的防抖器
+      // 跨 StrictMode 双挂载存续，cleanup 内 dispose 会令 dev 模式防抖器在
+      // 首次模拟卸载后永久停用，画布编辑不再落盘（e2e B8d 缺陷 D2 修复）。
       canvasSaver.flush();
-      canvasSaver.dispose();
     };
   }, [canvasSaver]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
