@@ -1,0 +1,25 @@
+# =============================================================================
+# 演示品牌 AcmeFlow（oem/brands/acmeflow.yaml，roadmap B5 验收②载体）
+#
+# 紫系 10 色阶（Material violet 手调，非算法派生——design §11）；
+# 三产品模块全关（菜单不渲染 + 后端路由不注册 → 端点 404）。
+# 产物：oem/dist/acmeflow/{web/, backend.env}
+# =============================================================================
+
+id: acmeflow
+product_name: AcmeFlow
+colors:
+  primary: "#7c3aed"
+  primary_hover: "#6d28d9"
+  primary_active: "#5b21b6"
+  primary_light: "#a78bfa"
+  primary_light_hover: "#8b5cf6"
+  primary_soft: "#ddd6fe"
+  primary_tint: "#f1eafd"
+  primary_tint_hover: "#e4dcfb"
+  primary_dark_tint: "#241a3a"
+  primary_dark_tint_hover: "#2d2248"
+modules:
+  agent_market: false
+  tool_market: false
+  knowledge_base: false

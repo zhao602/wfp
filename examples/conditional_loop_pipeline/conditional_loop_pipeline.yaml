@@ -1,0 +1,101 @@
+# =============================================================================
+# 范例八：条件循环流水线（examples/conditional_loop_pipeline/conditional_loop_pipeline.yaml）
+#
+# 场景：触发器 → Agent 生成初稿 → 循环节点 → 循环体内 Agent 评审 →
+#       条件分支（未达标继续循环）
+# 覆盖：触发器、Agent、控制流（循环 + 条件分支）三类节点；
+#       验证循环节点 max_iterations 上限与终止条件退出两项核心能力。
+# 出口口径：循环终止条件满足时取"非回边出边"，因此评审循环除指向循环体的
+#   回边外，还需一条指向输出展示的出边作为达标出口。
+# =============================================================================
+spec_version: "1.0"
+definition_id: conditional_loop_pipeline
+name: 条件循环流水线范例
+definition_version: 1
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: 待生成与评审的主题
+  - name: target_score
+    type: integer
+    required: true
+    description: 评审达标分数阈值（0~100）
+
+outputs: []
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        topic: topic
+        target_score: target_score
+
+  - node_id: generate_draft
+    name: 生成初稿
+    node_type: agent
+    output_name: draft
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: 你是一名内容撰写者，请根据主题生成初稿，输出 text 字段与 score 字段（初始 0）。
+
+  - node_id: review_loop
+    name: 评审循环
+    node_type: control_flow
+    configuration:
+      control_flow_kind: loop
+      loop_body_entry: review_draft
+      loop_termination_condition: draft.score >= target_score
+      max_iterations: 5
+
+  - node_id: review_draft
+    name: 评审初稿
+    node_type: agent
+    output_name: draft
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: 你是一名评审专家，请审阅初稿并给出修订稿，输出 text 字段与 score 字段（0~100）。
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - draft
+      display_title: 评审定稿
+
+  - node_id: branch_check
+    name: 达标判定
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: review_loop
+          expression: draft.score < target_score
+          label: 未达标继续
+      default_branch_target: review_loop
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: generate_draft
+  - edge_id: e2
+    source_node_id: generate_draft
+    target_node_id: review_loop
+  - edge_id: e3
+    source_node_id: review_loop
+    target_node_id: review_draft
+  - edge_id: e4
+    source_node_id: review_draft
+    target_node_id: branch_check
+  - edge_id: e6
+    source_node_id: branch_check
+    target_node_id: review_loop
+  # 非回边出边：draft.score >= target_score 达标时的退出路径
+  - edge_id: e7
+    source_node_id: review_loop
+    target_node_id: display_result

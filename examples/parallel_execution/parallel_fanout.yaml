@@ -1,0 +1,124 @@
+# =============================================================================
+# 范例：并行扇出激活形态（examples/parallel_execution/parallel_fanout.yaml）
+#
+# 场景：触发器 → 分叉源（课题拆解）→ {分支 A 分析 ∥ 分支 B 分析} → 并行汇聚 → 输出展示
+# B6 roadmap_b6_parallel_fanout（2026-11-22）：严格扇出形状激活并行区域——
+#   1. 分叉源 research_split 的出边目标集合 == parallel_branches 声明集合；
+#   2. 每个分支入口仅有来自分叉源的一条入边，分支路径线性且兄弟不相交；
+#   3. 汇聚节点入边来源 == 各分支尾节点，分支数 ≤ parallel_branch_max（缺省 10）；
+#   4. 等待轴 wait_policy（wait_all / wait_any / wait_n_of_m+wait_count）与
+#      失败轴 parallel_failure_strategy（fast_fail / wait_all）正交；
+#   5. 分支节点检查点携带 branch_id（分叉源/汇聚检查点 branch_id=None），
+#      区域中途崩溃可自前沿（parallel_positions/arrivals/cancelled）恢复重建。
+# 对照：同目录 parallel_execution.yaml 为串行化兼容形态（非严格扇出，
+#   编译器识别为不活跃 + 警告，维持单游标语义）。
+# =============================================================================
+spec_version: "1.1"
+definition_id: parallel_fanout
+name: 并行扇出激活形态范例
+definition_version: 1
+
+inputs:
+  - name: query
+    type: string
+    required: true
+    description: 查询主题
+
+outputs:
+  - name: analysis_a
+    type: object
+    description: 分支 A 分析结论
+  - name: analysis_b
+    type: object
+    description: 分支 B 分析结论
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        query: query
+
+  # 分叉源：出边目标集合 == {branch_a, branch_b} == parallel_branches 声明
+  - node_id: research_split
+    name: 课题拆解
+    node_type: agent
+    output_name: research_plan
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是课题统筹，请将查询拆解为两个分析视角并输出 JSON：{plan: string}。
+      available_tools: []
+      inputs:
+        - reference: query
+
+  # 分支 A：仅一条入边（来自分叉源），输出名与兄弟分支不相交
+  - node_id: branch_a
+    name: 分支A分析
+    node_type: agent
+    output_name: analysis_a
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是分析师A，请基于拆解结论分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
+      available_tools: []
+      inputs:
+        - reference: research_plan
+
+  # 分支 B：与分支 A 并发执行（严格扇出激活），仅引用扇出前输出
+  - node_id: branch_b
+    name: 分支B分析
+    node_type: agent
+    output_name: analysis_b
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是分析师B，请从另一角度基于拆解结论分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
+      available_tools: []
+      inputs:
+        - reference: research_plan
+
+  # 并行汇聚：wait_all 等待全部分支成功到达；fast_fail 任一失败即裁撤兄弟
+  - node_id: parallel_fanout
+    name: 并行汇聚
+    node_type: control_flow
+    configuration:
+      control_flow_kind: parallel_join
+      parallel_branches:
+        - branch_a
+        - branch_b
+      wait_policy: wait_all
+      parallel_failure_strategy: fast_fail
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - analysis_a
+        - analysis_b
+      display_title: 并行扇出分析结果
+
+edges:
+  - edge_id: e0
+    source_node_id: trigger_start
+    target_node_id: research_split
+  # 严格扇出：分叉源两条出边，目标集合 == 分支入口集合
+  - edge_id: e1
+    source_node_id: research_split
+    target_node_id: branch_a
+  - edge_id: e2
+    source_node_id: research_split
+    target_node_id: branch_b
+  # 汇聚：入边来源 == 各分支尾节点
+  - edge_id: e3
+    source_node_id: branch_a
+    target_node_id: parallel_fanout
+  - edge_id: e4
+    source_node_id: branch_b
+    target_node_id: parallel_fanout
+  - edge_id: e5
+    source_node_id: parallel_fanout
+    target_node_id: display_result

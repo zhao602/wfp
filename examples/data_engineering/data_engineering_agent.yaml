@@ -1,0 +1,120 @@
+# =============================================================================
+# 范例六：数据工程 Agent（examples/data_engineering/data_engineering_agent.yaml）
+#
+# 场景：从 Hologres 查询数据 → 数据转换（清洗+聚合）→ Agent 分析 → 结果展示
+# 覆盖：大数据连接器（Hologres）、数据转换操作链、Agent 分析
+# 配置口径：
+#   1. operation 与 input_dataset_reference 为数据转换节点必备项，
+#      缺失会导致定义校验失败；operations 非空时以操作链为准，
+#      顶层 operation 与链首步保持一致，仅为必备项占位。
+#   2. 聚合参数为单函数口径（aggregate_function/aggregate_field），
+#      不支持 aggregations 列表；均值与订单数由分析 Agent 基于聚合结果补充。
+#   3. 行级表达式（record.amount > 0、dict()/len()/now() 等）在受限求值器下
+#      不成立（OP-08），清洗改用字段级 handle_nulls；
+#      结果展示由输出展示节点承接，避免映射步骤丢失分析结论。
+# =============================================================================
+spec_version: "1.1"
+definition_id: data_engineering_agent
+name: 数据工程 Agent 范例
+definition_version: 1
+
+inputs:
+  - name: query_sql
+    type: string
+    required: true
+    description: Hologres 查询 SQL
+  - name: analysis_goal
+    type: string
+    required: true
+    description: 分析目标
+
+outputs:
+  - name: analysis_result
+    type: object
+    description: 分析结论（trends / anomalies / insights / recommendations）
+
+nodes:
+  - node_id: trigger_start
+    name: 启动数据工程流水线
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        query_sql: query_sql
+        analysis_goal: analysis_goal
+
+  - node_id: read_from_hologres
+    name: 从 Hologres 读取数据
+    node_type: data_source
+    output_name: raw_data
+    configuration:
+      connection_reference: hologres_connection
+      query: "SELECT * FROM sales_records WHERE dt >= current_date - 7"
+      dataset_identifier: sales_raw
+
+  - node_id: clean_and_aggregate
+    name: 数据清洗与聚合
+    node_type: data_transform
+    output_name: clean_data
+    configuration:
+      # 必备项占位：operations 非空时以操作链为准，此处与链首步一致
+      operation: handle_nulls
+      input_dataset_reference: raw_data
+      operations:
+        # 第一步：剔除订单号/金额缺失的记录（字段级清洗，替代行级条件过滤）
+        - operation: handle_nulls
+          params:
+            null_fields:
+              - order_id
+              - amount
+            null_value_scope:
+              - none
+              - empty
+              - missing
+            strategy: drop_row
+        # 第二步：按地区与品类汇总销售额
+        - operation: aggregate
+          params:
+            group_by: ["region", "product_category"]
+            aggregate_function: sum
+            aggregate_field: amount
+
+  - node_id: analysis_agent
+    name: 数据分析 Agent
+    node_type: agent
+    output_name: analysis_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是数据分析师。根据清洗聚合后的数据（clean_data）与分析目标（analysis_goal），执行以下分析：
+        1. 识别销售趋势与异常
+        2. 生成区域维度洞察
+        3. 在销售额汇总之外补充均值与订单量口径的说明
+        4. 提供可执行建议
+        输出 JSON：{trends: array, anomalies: array, insights: array, recommendations: array}
+      inputs:
+        - reference: clean_data
+        - reference: analysis_goal
+
+  - node_id: display_result
+    name: 分析结果展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - analysis_result
+        - clean_data
+      display_title: 数据工程分析结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: read_from_hologres
+  - edge_id: e2
+    source_node_id: read_from_hologres
+    target_node_id: clean_and_aggregate
+  - edge_id: e3
+    source_node_id: clean_and_aggregate
+    target_node_id: analysis_agent
+  - edge_id: e4
+    source_node_id: analysis_agent
+    target_node_id: display_result

@@ -1,0 +1,104 @@
+# =============================================================================
+# 范例二：并行执行（examples/parallel_execution/parallel_execution.yaml）
+#
+# 场景：触发器 → {Agent 分析 A → Agent 分析 B} → 并行汇聚 → 输出展示
+# 覆盖：并行汇聚节点（parallel_join）、分支输出隔离、FAST_FAIL 失败策略
+# 调度口径：调度器按声明顺序逐节点前进，普通节点取第一条出边。
+#   因此两个分析分支以顺序边串联保证都被执行，parallel_branches 声明
+#   参与汇聚的分支集合，parallel_join 以两条入边承接汇聚语义；
+#   若写成 fan-out（一个节点两条出边），仅有首条出边的分支会被执行。
+# B6 注记（2026-11-22，roadmap_b6_parallel_fanout）：本范例为串行化兼容
+#   形态——分支串联（branch_a → branch_b）非严格扇出形状，B6 编译器
+#   将其识别为不活跃并行区域（编译警告 + 维持上述单游标语义不变）；
+#   严格扇出的并行激活形态见同目录 parallel_fanout.yaml（分叉源双出边，
+#   分支真实并发执行，wait_policy 等待计数触发汇聚）。
+# =============================================================================
+spec_version: "1.1"
+definition_id: parallel_execution
+name: 并行执行范例
+definition_version: 1
+
+inputs:
+  - name: query
+    type: string
+    required: true
+    description: 查询主题
+
+outputs:
+  - name: analysis_a
+    type: object
+    description: 分支 A 分析结论
+  - name: analysis_b
+    type: object
+    description: 分支 B 分析结论
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        query: query
+
+  - node_id: branch_a
+    name: 分支A分析
+    node_type: agent
+    output_name: analysis_a
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是分析师A，请分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
+      available_tools: []
+      inputs:
+        - reference: query
+
+  - node_id: branch_b
+    name: 分支B分析
+    node_type: agent
+    output_name: analysis_b
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是分析师B，请从另一角度分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
+      available_tools: []
+      inputs:
+        - reference: query
+
+  - node_id: parallel_fanout
+    name: 并行汇聚
+    node_type: control_flow
+    configuration:
+      control_flow_kind: parallel_join
+      parallel_branches:
+        - branch_a
+        - branch_b
+      parallel_failure_strategy: fast_fail
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - analysis_a
+        - analysis_b
+      display_title: 双分支分析结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: branch_a
+  # 分支串联：保证 branch_b 在 branch_a 之后被执行（见头部调度口径）
+  - edge_id: e2
+    source_node_id: branch_a
+    target_node_id: branch_b
+  # 两条入边：parallel_join 承接两个分支的汇聚
+  - edge_id: e3
+    source_node_id: branch_a
+    target_node_id: parallel_fanout
+  - edge_id: e4
+    source_node_id: branch_b
+    target_node_id: parallel_fanout
+  - edge_id: e5
+    source_node_id: parallel_fanout
+    target_node_id: display_result

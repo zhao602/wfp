@@ -1,0 +1,56 @@
+# =============================================================================
+# 特征工程范例预置 Agent 定义（examples/feature_engineering/feature_engineering_agents.yaml）
+#
+# 职责：登记特征工程流水线预置 Agent 的完整描述信息（G4/T231）。
+# 说明：本文件为预置 Agent 定义清单，字段与编排定义中 agent 节点配置对齐，
+#       供范例使用者了解 Agent 职责与输入输出契约（A4.3.a）。
+# 对齐：feature_engineer 与 feature_engineering.yaml 中 agent 节点一一对应；
+#       upstream_data_steward 为可选辅助（不在编排内）。
+# =============================================================================
+
+agents:
+  - agent_id: feature_engineer
+    name: 特征工程 Agent
+    role: >-
+      面向机器学习训练场景的特征构造专家：依据特征需求设计候选特征清单，
+      说明计算口径，区分可直接计算与需额外数据源的特征。
+    inputs:
+      - name: clean_data
+        type: object
+        description: 清洗后的上游训练数据（来自 data_transform 节点输出）
+      - name: feature_requirements
+        type: string
+        description: 目标特征需求描述（来自流水线输入）
+    outputs:
+      - name: feature_result
+        type: object
+        description: >-
+          特征构造结果，含 feature_list（候选特征清单）/computed_features
+          （可直接计算特征）/pending_features（需额外数据源特征）/notes（说明）
+    model_identifier: qwen3.8-27b
+    system_prompt: >-
+      你是特征工程师。基于清洗后的数据与特征需求，执行以下工作：
+      1. 依据 feature_requirements 设计候选特征清单（统计类/时序类/交叉类）
+      2. 说明每个特征的计算口径与适用场景
+      3. 标注可直接由数据计算的特征与需要额外数据源的特征
+      输出 JSON：{feature_list: array, computed_features: array,
+      pending_features: array, notes: string}
+
+  - agent_id: upstream_data_steward
+    name: 上游数据接入检查 Agent（可选辅助）
+    role: >-
+      上游数据不可得时的缺数原因澄清辅助：说明 dataset_identifier 的
+      接入状态与缺失原因，避免模糊报错（异常场景 1 的人工排查辅助说明）。
+    inputs:
+      - name: dataset_identifier
+        type: string
+        description: 上游数据集标识
+    outputs:
+      - name: data_availability_report
+        type: object
+        description: 数据可得性报告（接入状态/缺失原因/建议动作）
+    model_identifier: qwen3.8-27b
+    system_prompt: >-
+      你是数据接入管理员。当上游数据不可得时，明确说明缺数原因
+      （数据集不存在/连接失效/权限不足/窗口未就绪），给出排查建议；
+      禁止输出模糊错误信息。

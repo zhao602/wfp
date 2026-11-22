@@ -1,0 +1,23 @@
+# =============================================================================
+# 非法样本：入口节点不唯一（多个触发器）
+# 预期错误码：WF_VALIDATION_FAILED（入口节点不唯一）
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_multiple_trigger_nodes
+name: 多触发器样本
+nodes:
+  - node_id: trigger_one
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: trigger_two
+    node_type: trigger
+    configuration:
+      trigger_type: scheduled
+      schedule: "0 9 * * *"
+edges:
+  - edge_id: e1
+    source_node_id: trigger_one
+    target_node_id: trigger_two
+inputs: []
+outputs: []

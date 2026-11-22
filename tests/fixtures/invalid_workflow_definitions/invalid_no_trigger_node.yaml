@@ -1,0 +1,22 @@
+# =============================================================================
+# 非法样本：缺少入口节点（无触发器）
+# 预期错误码：WF_VALIDATION_FAILED（缺少入口节点）
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_no_trigger_node
+name: 无触发器样本
+nodes:
+  - node_id: agent_a
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_b
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+edges:
+  - edge_id: e1
+    source_node_id: agent_a
+    target_node_id: agent_b
+inputs: []
+outputs: []

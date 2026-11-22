@@ -1,0 +1,16 @@
+# =============================================================================
+# 非法样本：YAML 语法错误
+# 预期错误码：WF_YAML_SYNTAX_ERROR（附行列号）
+# 说明：nodes 的列表项缩进错乱，导致 YAML 解析失败。
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_yaml_syntax
+name: 语法错误样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+   configuration:
+      trigger_type: manual
+edges: []
+inputs: []
+outputs: []

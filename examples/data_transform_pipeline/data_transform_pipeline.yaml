@@ -1,0 +1,89 @@
+# =============================================================================
+# 范例七：数据转换流水线（examples/data_transform_pipeline/data_transform_pipeline.yaml）
+#
+# 场景：触发器 → 数据源读取 → 缺失指标清洗 → 按类别聚合 → 输出展示
+# 覆盖：数据转换节点（缺失值清洗 + 聚合）、数据源节点
+# 表达式口径（OP-08）：filter 的行级条件（如 value >= min_value）在受限求值器下
+#   变量引用必失败，会把数据集剔空；阈值比较暂不可表达，
+#   故清洗步骤改用字段级 handle_nulls，阈值类过滤待求值器支持后再恢复。
+# =============================================================================
+spec_version: "1.1"
+definition_id: data_transform_pipeline
+name: 数据转换流水线范例
+definition_version: 1
+
+inputs: []
+
+outputs:
+  - name: aggregate_result
+    type: object
+    description: 聚合结果
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template: {}
+
+  - node_id: read_data
+    name: 读取数据集
+    node_type: data_source
+    output_name: raw_data
+    configuration:
+      connection_reference: demo_warehouse
+      query: "SELECT id, category, value FROM demo_table"
+
+  - node_id: filter_data
+    name: 清洗缺失指标
+    node_type: data_transform
+    output_name: filtered_data
+    configuration:
+      # 剔除 category/value 缺失的记录，避免聚合出现空分组与空求和
+      operation: handle_nulls
+      input_dataset_reference: raw_data
+      params:
+        null_fields:
+          - category
+          - value
+        null_value_scope:
+          - none
+          - empty
+          - missing
+        strategy: drop_row
+
+  - node_id: aggregate_data
+    name: 聚合统计
+    node_type: data_transform
+    output_name: aggregate_result
+    configuration:
+      operation: aggregate
+      input_dataset_reference: filtered_data
+      params:
+        group_by:
+          - category
+        aggregate_function: sum
+        aggregate_field: value
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - aggregate_result
+      display_title: 分类聚合结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: read_data
+  - edge_id: e2
+    source_node_id: read_data
+    target_node_id: filter_data
+  - edge_id: e3
+    source_node_id: filter_data
+    target_node_id: aggregate_data
+  - edge_id: e4
+    source_node_id: aggregate_data
+    target_node_id: display_result

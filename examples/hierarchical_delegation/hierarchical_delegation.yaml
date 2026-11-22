@@ -1,0 +1,103 @@
+# =============================================================================
+# 范例四：层级委派（examples/hierarchical_delegation/hierarchical_delegation.yaml）
+#
+# 场景：总监 Agent 接收任务 → 委派前端组长 → 委派后端组长 → 总监汇总输出
+# 覆盖：多层级委派、子工作流嵌套、上下文传递（INHERIT 策略）
+# 调度口径：普通节点仅取第一条出边，两次委派以顺序边串联保证都执行；
+#   若总监直接引出两条出边，后端委派与总监汇总都不会被执行。
+# 映射口径：input_mapping 取值必须是父共享状态字段引用，字面量（如 team_type:
+#   frontend）会被当作引用并校验失败；团队方向改由 team_task 文本承载。
+# =============================================================================
+spec_version: "1.1"
+definition_id: hierarchical_delegation
+name: 层级委派范例
+definition_version: 1
+
+inputs:
+  - name: task_description
+    type: string
+    required: true
+    description: 任务描述
+  - name: priority
+    type: string
+    required: false
+    description: 优先级（high/medium/low）
+    default: medium
+
+outputs:
+  - name: final_result
+    type: object
+    description: 最终汇总结果
+
+nodes:
+  - node_id: trigger_start
+    name: 接收任务
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        task_description: task_description
+        priority: priority
+
+  - node_id: director_agent
+    name: 总监 Agent
+    node_type: agent
+    output_name: director_plan
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是项目总监。分析任务描述，将任务分解为两个子任务，
+        分别委派给前端组长和后端组长，任务描述中明确写出团队方向（前端/后端）。
+        输出 JSON：{frontend_task: string, backend_task: string, overall_goal: string}
+
+  - node_id: delegate_frontend
+    name: 委派前端组长
+    node_type: subworkflow
+    output_name: frontend_result
+    configuration:
+      subworkflow_definition_id: hierarchical_delegation_team_lead
+      input_mapping:
+        team_task: director_plan.frontend_task
+      output_mapping:
+        team_report: report
+      context_strategy: inherit
+      max_nesting_depth: 3
+
+  - node_id: delegate_backend
+    name: 委派后端组长
+    node_type: subworkflow
+    output_name: backend_result
+    configuration:
+      subworkflow_definition_id: hierarchical_delegation_team_lead
+      input_mapping:
+        team_task: director_plan.backend_task
+      output_mapping:
+        team_report: report
+      context_strategy: inherit
+      max_nesting_depth: 3
+
+  - node_id: director_summary
+    name: 总监汇总
+    node_type: agent
+    output_name: final_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是项目总监。根据前端组和后端组的报告，
+        生成最终项目总结报告。输出 JSON：{summary: string, status: string, key_findings: array}
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: director_agent
+  - edge_id: e2
+    source_node_id: director_agent
+    target_node_id: delegate_frontend
+  # 顺序串联：前端委派完成后再委派后端，两份报告分别写入共享状态
+  - edge_id: e3
+    source_node_id: delegate_frontend
+    target_node_id: delegate_backend
+  # 汇总节点必须有入边，否则成为不可达节点且 final_result 无产出
+  - edge_id: e4
+    source_node_id: delegate_backend
+    target_node_id: director_summary

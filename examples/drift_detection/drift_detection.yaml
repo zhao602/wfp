@@ -1,0 +1,129 @@
+# =============================================================================
+# 范例十二：数据漂移检测（examples/drift_detection/drift_detection.yaml）
+#
+# 场景：读取当前数据 → 基线存在性条件分支 →
+#       基线已建立：读取基线数据 → 漂移检测 Agent 判定；
+#       基线未建立：走默认分支产出 baseline_established=false 结论（不判定、不误报）
+# 覆盖：基线缺失默认分支（不误报）、Agent 漂移判定、结论输出展示
+# 依赖：LLM 主模型三变量（LLM_PRIMARY_BASE_URL/API_KEY/MODEL）
+# 分支口径：条件分支无匹配且无默认分支会直接报错终止，
+#   因此"基线未建立"必须由 default_branch_target 显式承接。
+# =============================================================================
+spec_version: "1.1"
+definition_id: drift_detection
+name: 数据漂移检测范例
+definition_version: 1
+
+inputs:
+  - name: current_dataset_id
+    type: string
+    required: true
+    description: 当前待检测数据集标识
+  - name: baseline_dataset_id
+    type: string
+    required: false
+    description: 基线数据集标识（缺失或为空表示基线未建立）
+
+outputs: []
+
+nodes:
+  - node_id: trigger_start
+    name: 启动漂移检测
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        current_dataset_id: current_dataset_id
+        baseline_dataset_id: baseline_dataset_id
+
+  - node_id: read_current_data
+    name: 读取当前数据
+    node_type: data_source
+    output_name: current_data
+    configuration:
+      connection_reference: monitoring_data_connection
+      dataset_identifier: current_dataset_id
+
+  - node_id: baseline_check
+    name: 基线存在性检查
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: read_baseline_data
+          expression: "baseline_dataset_id is not None and baseline_dataset_id != ''"
+          label: 基线已建立
+      # 基线缺失/为空：进入"基线未建立"结论分支，而非无匹配报错
+      default_branch_target: baseline_missing_agent
+
+  - node_id: read_baseline_data
+    name: 读取基线数据
+    node_type: data_source
+    output_name: baseline_data
+    configuration:
+      # 与当前数据同一监控数据源，按基线标识取数；缺失基线时本节点不会执行
+      connection_reference: monitoring_data_connection
+      dataset_identifier: baseline_dataset_id
+
+  - node_id: drift_agent
+    name: 漂移检测 Agent
+    node_type: agent
+    output_name: drift_analysis
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是数据漂移检测专家。对比当前数据（current_data）与基线数据（baseline_data），执行以下工作：
+        1. 识别特征分布偏移（均值/方差/分位数/类别占比）
+        2. 量化漂移程度并给出 drift_score（0~1，越大漂移越显著）
+        3. 漂移显著（drift_score 阈值参考 0.3）时标记 drift_detected 为 true
+        输出 JSON：{baseline_established: true, drift_detected: boolean,
+        drift_score: number, shifted_features: array, notes: string}
+      inputs:
+        - reference: current_data
+        - reference: baseline_data
+
+  - node_id: baseline_missing_agent
+    name: 基线未建立结论
+    node_type: agent
+    output_name: baseline_status
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        基线数据集未建立，本次不具备漂移判定条件。
+        不做任何漂移推断、不给出 drift_detected=true、不编造漂移特征。
+        直接输出 JSON：{baseline_established: false, drift_detected: false,
+        drift_score: 0, shifted_features: [], notes: "基线未建立，本次不判定漂移"}
+      inputs:
+        - reference: current_dataset_id
+
+  - node_id: display_result
+    name: 检测结论展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - drift_analysis
+        - baseline_status
+      display_title: 漂移检测结论
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: read_current_data
+  - edge_id: e2
+    source_node_id: read_current_data
+    target_node_id: baseline_check
+  - edge_id: e3
+    source_node_id: baseline_check
+    target_node_id: read_baseline_data
+  - edge_id: e4
+    source_node_id: read_baseline_data
+    target_node_id: drift_agent
+  - edge_id: e5
+    source_node_id: baseline_check
+    target_node_id: baseline_missing_agent
+  - edge_id: e6
+    source_node_id: drift_agent
+    target_node_id: display_result
+  - edge_id: e7
+    source_node_id: baseline_missing_agent
+    target_node_id: display_result

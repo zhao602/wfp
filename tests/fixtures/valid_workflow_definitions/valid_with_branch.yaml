@@ -1,0 +1,91 @@
+# =============================================================================
+# 合法样本：含条件分支（监督者路由）
+# 用途：验证控制流条件分支节点与多分支拓扑解析通过。
+# =============================================================================
+spec_version: "1.0"
+definition_id: valid_with_branch
+name: 含条件分支的监督者路由
+definition_version: 1
+
+inputs:
+  - name: task_type
+    type: string
+    required: true
+    description: 任务类型（finance/operation）
+
+outputs:
+  - name: routing_result
+    type: object
+    description: 路由处理结果
+
+nodes:
+  - node_id: trigger_manual
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+
+  - node_id: supervisor_agent
+    name: 监督者意图识别
+    node_type: agent
+    output_name: intent
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 识别任务类型并输出 intent 字段。
+
+  - node_id: branch_router
+    name: 条件分支
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: finance_agent
+          expression: "intent == 'finance'"
+          label: 财务分支
+        - target_node_id: operation_agent
+          expression: "intent == 'operation'"
+          label: 运营分支
+      default_branch_target: operation_agent
+
+  - node_id: finance_agent
+    name: 财务分析
+    node_type: agent
+    output_name: finance_result
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 执行财务分析。
+
+  - node_id: operation_agent
+    name: 运营分析
+    node_type: agent
+    output_name: operation_result
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 执行运营分析。
+
+  - node_id: join_node
+    name: 结果汇聚
+    node_type: control_flow
+    configuration:
+      control_flow_kind: parallel_join
+      parallel_failure_strategy: fast_fail
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: supervisor_agent
+  - edge_id: e2
+    source_node_id: supervisor_agent
+    target_node_id: branch_router
+  - edge_id: e3
+    source_node_id: branch_router
+    target_node_id: finance_agent
+  - edge_id: e4
+    source_node_id: branch_router
+    target_node_id: operation_agent
+  - edge_id: e5
+    source_node_id: finance_agent
+    target_node_id: join_node
+  - edge_id: e6
+    source_node_id: operation_agent
+    target_node_id: join_node

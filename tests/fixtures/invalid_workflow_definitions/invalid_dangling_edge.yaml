@@ -1,0 +1,18 @@
+# =============================================================================
+# 非法样本：连线引用不存在的节点
+# 预期错误码：WF_VALIDATION_FAILED（指明具体连线）
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_dangling_edge
+name: 悬空连线样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+edges:
+  - edge_id: e_dangling
+    source_node_id: trigger_manual
+    target_node_id: not_exist_node
+inputs: []
+outputs: []

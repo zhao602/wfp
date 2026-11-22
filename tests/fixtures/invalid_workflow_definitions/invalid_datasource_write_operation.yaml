@@ -1,0 +1,24 @@
+# =============================================================================
+# 非法样本：数据源节点包含写操作语句
+# 预期错误码：WF_VALIDATION_FAILED（数据源节点禁止写操作）
+# 说明：写操作应在校验阶段即被拒绝（写操作守卫 + 节点配置校验）。
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_datasource_write_operation
+name: 数据源写操作样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: ds_write
+    node_type: data_source
+    configuration:
+      connection_reference: demo_warehouse
+      query: "INSERT INTO demo_table (id, value) VALUES (1, 100)"
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: ds_write
+inputs: []
+outputs: []

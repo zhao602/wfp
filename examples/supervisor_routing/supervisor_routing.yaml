@@ -1,0 +1,119 @@
+# =============================================================================
+# 范例三：监督者路由（examples/supervisor_routing/supervisor_routing.yaml）
+#
+# 场景：触发器 → 监督者 Agent 输出路由决策 → 条件分支按决策分发 →
+#       财务/运营分析 Agent → 输出展示
+# 覆盖：监督者决策、条件分支唯一路径选择、默认分支策略
+# 迁移说明（merge_tool_into_agent_node DC-E / CHG-23）：结论输出由输出展示节点
+#   承接，不再使用独立 tool 节点；分析结果以命名输出写入共享状态。
+# =============================================================================
+spec_version: "1.0"
+definition_id: supervisor_routing
+name: 监督者路由范例
+definition_version: 1
+
+inputs:
+  - name: query
+    type: string
+    required: true
+    description: 待分析的查询内容
+
+outputs:
+  - name: routing_decision
+    type: object
+    description: 监督者路由决策（route / reason）
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        query: query
+
+  - node_id: supervisor
+    name: 监督者
+    node_type: agent
+    output_name: routing_decision
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是监督者，分析查询并决定路由到财务分析或运营分析。
+        输出 JSON：{route: string, reason: string}，
+        其中 route 只能取 finance 或 operations，reason 简述路由依据。
+      available_tools: []
+      inputs:
+        - reference: query
+      output_schema:
+        route: string
+        reason: string
+
+  - node_id: branch_router
+    name: 路由分支
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: finance_analysis
+          expression: routing_decision.route == 'finance'
+          label: 财务分析
+        - target_node_id: operations_analysis
+          expression: routing_decision.route == 'operations'
+          label: 运营分析
+      # 决策缺失或取值越界时回落财务分析，避免"无匹配分支"终止
+      default_branch_target: finance_analysis
+
+  - node_id: finance_analysis
+    name: 财务分析
+    node_type: agent
+    output_name: finance_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是财务分析师，请分析财务相关查询，输出 JSON：{conclusion: string, key_points: array}。
+      available_tools: []
+      inputs:
+        - reference: query
+
+  - node_id: operations_analysis
+    name: 运营分析
+    node_type: agent
+    output_name: operations_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是运营分析师，请分析运营相关查询，输出 JSON：{conclusion: string, key_points: array}。
+      available_tools: []
+      inputs:
+        - reference: query
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - routing_decision
+        - finance_result
+        - operations_result
+      display_title: 监督者路由结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: supervisor
+  - edge_id: e2
+    source_node_id: supervisor
+    target_node_id: branch_router
+  - edge_id: e3
+    source_node_id: branch_router
+    target_node_id: finance_analysis
+  - edge_id: e4
+    source_node_id: branch_router
+    target_node_id: operations_analysis
+  - edge_id: e5
+    source_node_id: finance_analysis
+    target_node_id: display_result
+  - edge_id: e6
+    source_node_id: operations_analysis
+    target_node_id: display_result

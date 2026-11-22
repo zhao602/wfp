@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://orchestration-platform/schemas/workflow_definition_v1.schema.json",
+  "title": "工作流定义规范 v1",
+  "description": "第一阶段工作流定义的声明式规范。必备五要素：spec_version、nodes、edges、inputs、outputs；另含 definition_id 与 name 元信息。",
+  "type": "object",
+  "required": ["spec_version", "definition_id", "name", "nodes", "edges", "inputs", "outputs"],
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "description": "规范版本号，第一阶段支持 1.0",
+      "enum": ["1.0"]
+    },
+    "definition_id": {
+      "type": "string",
+      "description": "定义标识，全局唯一",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "description": "定义名称，长度不超过 100",
+      "maxLength": 100
+    },
+    "definition_version": {
+      "type": "integer",
+      "description": "定义版本号，每次保存递增",
+      "minimum": 1,
+      "default": 1
+    },
+    "nodes": {
+      "type": "array",
+      "description": "节点列表，至少一个触发器节点，总数不超过 50",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "连线列表，可为空（单节点工作流）",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "inputs": {
+      "type": "array",
+      "description": "输入参数定义",
+      "items": { "$ref": "#/definitions/inputParameter" }
+    },
+    "outputs": {
+      "type": "array",
+      "description": "输出定义",
+      "items": { "$ref": "#/definitions/outputDeclaration" }
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["node_id", "node_type", "configuration"],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "节点标识，同一定义内唯一，仅含字母/数字/下划线",
+          "pattern": "^[A-Za-z0-9_]+$"
+        },
+        "name": { "type": "string", "maxLength": 100 },
+        "node_type": {
+          "type": "string",
+          "enum": ["agent", "tool", "data_source", "trigger", "control_flow"]
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 1 },
+        "output_name": { "type": "string" },
+        "retry_policy": {
+          "type": "object",
+          "properties": {
+            "max_retries": { "type": "integer", "minimum": 0 },
+            "retry_interval_seconds": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "configuration": {
+          "type": "object",
+          "description": "节点配置，结构随 node_type 变化"
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["edge_id", "source_node_id", "target_node_id"],
+      "properties": {
+        "edge_id": { "type": "string", "minLength": 1 },
+        "source_node_id": { "type": "string", "minLength": 1 },
+        "target_node_id": { "type": "string", "minLength": 1 },
+        "condition": { "type": "string" }
+      }
+    },
+    "inputParameter": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "object", "array"]
+        },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" },
+        "default": {}
+      }
+    },
+    "outputDeclaration": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

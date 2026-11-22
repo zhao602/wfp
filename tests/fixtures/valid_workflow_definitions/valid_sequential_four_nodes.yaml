@@ -1,0 +1,60 @@
+# =============================================================================
+# 合法样本：四节点顺序流水线
+# 用途：验证五要素齐备、四类节点（触发器/数据源/Agent/Tool）组合解析通过。
+# =============================================================================
+spec_version: "1.0"
+definition_id: sequential_four_nodes
+name: 四节点顺序流水线
+definition_version: 1
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: 分析主题
+
+outputs:
+  - name: report
+    type: object
+    description: 分析报告
+
+nodes:
+  - node_id: trigger_manual
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+
+  - node_id: read_dataset
+    name: 读取数据集
+    node_type: data_source
+    configuration:
+      connection_reference: demo_warehouse
+      query: "SELECT id, value FROM demo_table"
+
+  - node_id: analyze_data
+    name: 数据分析
+    node_type: agent
+    output_name: analysis
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 你是一名数据分析师，请分析输入数据。
+
+  - node_id: build_report
+    name: 生成报告
+    node_type: tool
+    output_name: report
+    configuration:
+      tool_identifier: report_builder
+      tool_source: local
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: read_dataset
+  - edge_id: e2
+    source_node_id: read_dataset
+    target_node_id: analyze_data
+  - edge_id: e3
+    source_node_id: analyze_data
+    target_node_id: build_report

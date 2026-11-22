@@ -1,0 +1,23 @@
+{
+  "_comment": "漂移告警订阅示例配置（G4/T234）：经既有订阅创建接口 POST /api/v1/subscriptions 提交。模板绑定使用 G6 阈值持续突破模板（THRESHOLD_SUSTAINED_BREACH），field_name=drift_score，连续 3 次突破阈值才触发（防抖防误报）。漂移事件由 drift_detection 范例经既有事件通道发布（事件体含 drift_detected/drift_score 字段），消息中间件不可用时经内存降级通道照常发布。",
+  "workflow_definition_id": "drift_alert_receiver",
+  "workflow_definition_version": 1,
+  "source_type": "kafka",
+  "connection_reference": "drift_events_connection",
+  "event_source": "drift_detection_events",
+  "filter_rules": [],
+  "input_mapping": {
+    "drift_score": "drift_score",
+    "drift_detected": "drift_detected",
+    "instance_id": "instance_id"
+  },
+  "max_triggers": null,
+  "template_binding": {
+    "template_type": "threshold_sustained_breach",
+    "params": {
+      "field_name": "drift_score",
+      "threshold": 0.3,
+      "sustained_count": 3
+    }
+  }
+}

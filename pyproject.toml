@@ -1,0 +1,70 @@
+# =============================================================================
+# 企业级多 Agent 工作流编排平台 —— 后端工程依赖与工具配置
+# 说明：本文件声明后端主包（src/orchestration_platform）的依赖、构建与测试配置。
+#       Python 版本与实测运行环境（3.10.20）对齐，代码基线为 3.10 兼容
+#       （禁用 StrEnum/Self/TaskGroup/PEP 695 等 3.11+ 独有语法）。
+# =============================================================================
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orchestration-platform"
+version = "0.2.0"
+description = "企业级多 Agent 工作流编排与治理平台 —— YAML 声明式契约 + 画布双模编辑 + 嵌入 SDK"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Private :: Do Not Upload",
+]
+
+# 运行时依赖：Web 服务、配置管理、YAML 解析、编排引擎、HTTP 客户端、数据库驱动
+dependencies = [
+    "fastapi>=0.110,<0.136",  # 上界：starlette 1.x 移除 add_event_handler，application_factory 7 处调用点不兼容；门禁实测 0.135.0 + starlette 0.52.1
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "typing-extensions>=4.6",
+    "PyYAML>=6.0",
+    "langgraph>=0.2",
+    "httpx>=0.27",
+    "psycopg[binary]>=3.1",
+]
+
+[project.optional-dependencies]
+# PostgreSQL profile 依赖：asyncpg 仓储（治理 6 + 业务 3）运行时惰性导入
+# （B0 出口记录移交项，roadmap B1 落地；防止新环境 postgres profile 静默降级）
+postgres = [
+    "asyncpg>=0.29",
+]
+
+# 测试依赖：单元/集成/契约/性能测试所需
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
+# wfp 命令行入口（arch_review_v2 5.1，CHG-17；GK-09：依赖段零改动，仅追加本段）
+[project.scripts]
+wfp = "orchestration_platform.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# 测试路径与异步模式：asyncio_mode=auto 使 async 测试函数无需显式标记
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src", ".", "sdk"]
+addopts = "-ra -q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

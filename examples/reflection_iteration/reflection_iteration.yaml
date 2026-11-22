@@ -1,0 +1,120 @@
+# =============================================================================
+# 范例五：反思迭代（examples/reflection_iteration/reflection_iteration.yaml）
+#
+# 场景：Agent 生成初稿 → 评审 Agent 检查质量 → 不达标则循环重新生成（带反馈）
+# 覆盖：循环控制、条件分支、Agent 反思迭代模式
+# 字段口径：循环节点只识别 loop_body_entry / loop_termination_condition /
+#   max_iterations（loop_variable、loop_condition、loop_target 不是合法字段，
+#   写入会被忽略并导致循环必然不收敛）。
+# =============================================================================
+spec_version: "1.1"
+definition_id: reflection_iteration
+name: 反思迭代范例
+definition_version: 1
+
+inputs:
+  - name: task
+    type: string
+    required: true
+    description: 任务描述
+  - name: quality_threshold
+    type: string
+    required: false
+    description: 质量阈值（默认 0.8）
+    default: "0.8"
+
+outputs:
+  - name: generation_result
+    type: object
+    description: 收敛后的生成结果（content / version）
+  - name: critique_result
+    type: object
+    description: 最后一轮评审结论（score / feedback / pass）
+
+nodes:
+  - node_id: trigger_start
+    name: 接收任务
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        task: task
+        quality_threshold: quality_threshold
+
+  - node_id: generator_agent
+    name: 生成 Agent
+    node_type: agent
+    output_name: generation_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是生成 Agent。根据任务描述和之前的反馈（如有）生成或改进输出。
+        首次生成时无反馈，请直接根据任务生成。
+        后续迭代时，请根据评审反馈改进上一版本。
+        输出 JSON：{content: string, version: integer}
+
+  - node_id: critic_agent
+    name: 评审 Agent
+    node_type: agent
+    output_name: critique_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是评审 Agent。评估生成内容的质量。
+        评分维度：准确性、完整性、清晰度、实用性，各 0-1 分。
+        输出 JSON：{score: float, feedback: string, pass: boolean}
+        pass 为 true 当且仅当综合评分超过质量阈值。
+
+  - node_id: quality_check
+    name: 质量检查分支
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: check_iterations
+          expression: critique_result.pass == false
+          label: 质量不达标
+      # 达标与未达标都进入迭代检查：由循环节点的终止条件统一裁决退出或重做，
+      # 避免"达标"路径缺少出口
+      default_branch_target: check_iterations
+
+  - node_id: check_iterations
+    name: 迭代次数检查
+    node_type: control_flow
+    configuration:
+      control_flow_kind: loop
+      # 未达标时回到生成 Agent 重做；终止条件为真则取非回边出边（输出展示）
+      loop_body_entry: generator_agent
+      loop_termination_condition: critique_result.pass == true
+      max_iterations: 5
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - generation_result
+        - critique_result
+      display_title: 反思迭代最终结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: generator_agent
+  - edge_id: e2
+    source_node_id: generator_agent
+    target_node_id: critic_agent
+  - edge_id: e3
+    source_node_id: critic_agent
+    target_node_id: quality_check
+  - edge_id: e5
+    source_node_id: quality_check
+    target_node_id: check_iterations
+  # 回边：目标即 loop_body_entry，不参与拓扑排序入度计算
+  - edge_id: e6
+    source_node_id: check_iterations
+    target_node_id: generator_agent
+  # 非回边出边：循环终止条件满足时的退出路径
+  - edge_id: e7
+    source_node_id: check_iterations
+    target_node_id: display_result

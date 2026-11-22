@@ -1,0 +1,24 @@
+# =============================================================================
+# 默认品牌（oem/brands/default.yaml）——现状视觉零变化基准（roadmap B5）
+#
+# 颜色/产品名与现状逐字节一致（T1 逐行测绘）；三产品模块全开。
+# 产物：oem/dist/default/{web/, backend.env}
+# =============================================================================
+
+id: default
+product_name: 工作流编排平台
+colors:
+  primary: "#1976d2"              # 主色（浅色主按钮背景/dot 渐变起点/激活描边）
+  primary_hover: "#1565c0"        # 悬停（浅色主按钮 hover/亮激活文字）
+  primary_active: "#0d47a1"       # 按压（浅色主按钮 active）
+  primary_light: "#42a5f5"        # 亮阶（深色主按钮背景/dot 渐变终点/暗激活描边）
+  primary_light_hover: "#2196f3"  # 深色主按钮 hover
+  primary_soft: "#8ec5fc"         # 柔阶（暗激活文字/亮渐变终点）
+  primary_tint: "#e8f1fb"         # 浅底（亮激活背景）
+  primary_tint_hover: "#dceaf8"   # 浅底悬停（亮激活 hover 背景）
+  primary_dark_tint: "#1a2a3a"    # 暗底（暗激活背景）
+  primary_dark_tint_hover: "#213045"  # 暗底悬停（暗激活 hover 背景）
+modules:
+  agent_market: true
+  tool_market: true
+  knowledge_base: true

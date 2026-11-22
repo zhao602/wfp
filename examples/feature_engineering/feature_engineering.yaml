@@ -1,0 +1,122 @@
+# =============================================================================
+# 范例十一：特征工程流水线（examples/feature_engineering/feature_engineering.yaml）
+#
+# 场景：读取上游训练数据 → 数据变换（缺失值清洗/按用户整序）→ 特征工程 Agent（构造特征）
+# 覆盖：上游数据接入、数据转换节点、Agent 特征构造
+# 依赖：LLM 主模型三变量（LLM_PRIMARY_BASE_URL/API_KEY/MODEL）
+# 上游数据不可得时：按节点失败语义终止并给出明确缺数原因（异常场景 1）
+# 表达式口径（OP-08）：filter/map 的行级表达式经受限求值器求值，
+#   变量引用与函数调用均不成立（过滤会剔空数据集、映射会保留原行），
+#   故本范例的清洗与整序改用字段级操作（handle_nulls / sort）表达。
+# =============================================================================
+spec_version: "1.1"
+definition_id: feature_engineering
+name: 特征工程流水线范例
+definition_version: 1
+
+inputs:
+  - name: dataset_identifier
+    type: string
+    required: true
+    description: 上游训练数据集标识
+  - name: feature_requirements
+    type: string
+    required: true
+    description: 目标特征需求描述（如"按用户维度构造近 7 日行为统计特征"）
+
+outputs: []
+
+nodes:
+  - node_id: trigger_start
+    name: 启动特征工程流水线
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        dataset_identifier: dataset_identifier
+        feature_requirements: feature_requirements
+
+  - node_id: read_upstream_data
+    name: 读取上游训练数据
+    node_type: data_source
+    output_name: upstream_data
+    configuration:
+      # 上游数据连接引用：不可得时本节点按失败语义终止，
+      # 错误信息明确携带 dataset_identifier 与缺数原因（异常场景 1，不模糊报错）
+      connection_reference: training_data_connection
+      dataset_identifier: dataset_identifier
+
+  - node_id: filter_invalid_records
+    name: 过滤无效记录
+    node_type: data_transform
+    output_name: filtered_data
+    configuration:
+      # 剔除 user_id 缺失/为空的记录：与原"user_id 非空"过滤意图一致，
+      # 但不依赖行级表达式（见头部 OP-08 口径）
+      operation: handle_nulls
+      input_dataset_reference: upstream_data
+      params:
+        null_fields:
+          - user_id
+        null_value_scope:
+          - none
+          - empty
+          - missing
+        strategy: drop_row
+
+  - node_id: enrich_metadata
+    name: 按用户整序
+    node_type: data_transform
+    output_name: clean_data
+    configuration:
+      # 上一步已保证 user_id 非空，可安全作为排序键；
+      # 整序后同用户记录相邻，便于 Agent 按用户维度归纳行为特征
+      operation: sort
+      input_dataset_reference: filtered_data
+      params:
+        sort_keys:
+          - user_id
+        sort_orders:
+          - asc
+
+  - node_id: feature_engineer_agent
+    name: 特征工程 Agent
+    node_type: agent
+    output_name: feature_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是特征工程师。基于清洗后的数据与特征需求，执行以下工作：
+        1. 依据 feature_requirements 设计候选特征清单（统计类/时序类/交叉类）
+        2. 说明每个特征的计算口径与适用场景
+        3. 标注可直接由数据计算的特征与需要额外数据源的特征
+        输出 JSON：{feature_list: array, computed_features: array,
+        pending_features: array, notes: string}
+      inputs:
+        - reference: clean_data
+        - reference: feature_requirements
+
+  - node_id: display_result
+    name: 特征清单展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - feature_result
+      display_title: 特征工程结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: read_upstream_data
+  - edge_id: e2
+    source_node_id: read_upstream_data
+    target_node_id: filter_invalid_records
+  - edge_id: e3
+    source_node_id: filter_invalid_records
+    target_node_id: enrich_metadata
+  - edge_id: e4
+    source_node_id: enrich_metadata
+    target_node_id: feature_engineer_agent
+  - edge_id: e5
+    source_node_id: feature_engineer_agent
+    target_node_id: display_result

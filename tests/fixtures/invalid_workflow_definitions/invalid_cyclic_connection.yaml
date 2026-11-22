@@ -1,0 +1,33 @@
+# =============================================================================
+# 非法样本：普通连线构成环
+# 预期错误码：WF_CYCLIC_GRAPH（输出环路径节点序列）
+# 说明：循环语义必须由循环控制流节点表达，普通连线成环一律非法。
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_cyclic_connection
+name: 环形拓扑样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: agent_a
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_b
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: agent_a
+  - edge_id: e2
+    source_node_id: agent_a
+    target_node_id: agent_b
+  - edge_id: e3
+    source_node_id: agent_b
+    target_node_id: agent_a
+inputs: []
+outputs: []

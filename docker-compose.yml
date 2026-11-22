@@ -1,0 +1,71 @@
+# =============================================================================
+# 生产编排（docker-compose.yml）
+#
+# 目标（arch_review_v2_tasks 4.3，CHG-34/35；2.13 合并落盘）：
+#   1. services = api + postgres，环境变量单一事实源为生产模板
+#      （cp .env.production.example .env.production 后填真实值）；
+#   2. 生产建议值齐备（ENVIRONMENT/TOKEN_VERIFY_MODE/CODE_EXECUTION_CHANNEL/
+#      AUTH_TOKEN_ISSUANCE_ENABLED/RBAC_ENABLED/RBAC_BOOTSTRAP_ENABLED/
+#      WORKFLOW_STEP_GUARD_ENABLED，见 .env.production.example）；
+#   3. 仅占位密钥：真实密钥一律经 .env.production 注入，禁止内嵌本文件
+#      （HC-08；compose 内嵌真实密钥为 DC-13 否决项）。
+#
+# 启动（详见 docs/deploy.md「10 分钟路径」）：
+#   docker compose --env-file .env.production up -d --build
+#   curl http://localhost:8000/healthz
+#
+# 禁试说明：docker compose up 属 N 类禁试（§13.1）；沙箱仅
+#   docker compose config 语法核对（S）；真实运行移交用户（§8-D5，AC-01）。
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # 凭据经 --env-file 指定的生产模板注入（:? 强制存在，防误用空值起库）
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env.production}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      # compose 网络内经服务名寻址（覆盖模板中的主机名口径）
+      POSTGRES_HOST: postgres
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - api-data:/app/.data
+      - api-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # 基础镜像无 curl，用标准库探活（/healthz 免鉴权）
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  api-data:
+  api-logs:

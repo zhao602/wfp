@@ -1,0 +1,33 @@
+# =============================================================================
+# wfp-sdk 构建配置（sdk/pyproject.toml）
+#
+# 独立可安装包：仅依赖 httpx，零 import orchestration_platform（不泄漏内部模块，
+# roadmap B2 验收）。从本目录构建：python -m pip wheel . --no-deps -w dist
+# =============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfp-sdk"
+version = "0.2.0"
+description = "工作流编排平台嵌入 SDK —— 提交/触发/订阅/取消/取结果 同步客户端"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.24",
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wfp_sdk*"]

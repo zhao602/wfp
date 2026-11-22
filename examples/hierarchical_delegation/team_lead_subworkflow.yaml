@@ -1,0 +1,88 @@
+# =============================================================================
+# 范例四-子工作流：组长委派（examples/hierarchical_delegation/team_lead_subworkflow.yaml）
+#
+# 场景：组长接收任务 → 组员一执行 → 组员二执行 → 组长汇总
+# 覆盖：第二层级委派、子工作流嵌套深度 2
+# 调度口径：两名组员以顺序边串联，避免仅有首条出边对应的组员被执行。
+# =============================================================================
+spec_version: "1.1"
+definition_id: hierarchical_delegation_team_lead
+name: 组长委派子工作流
+definition_version: 1
+
+inputs:
+  - name: team_task
+    type: string
+    required: true
+    description: 团队任务
+
+outputs:
+  - name: report
+    type: object
+    description: 团队报告
+
+nodes:
+  - node_id: trigger_start
+    name: 组长接收任务
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        team_task: team_task
+
+  - node_id: team_lead_agent
+    name: 组长 Agent
+    node_type: agent
+    output_name: task_breakdown
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是团队组长。根据任务描述识别团队方向，将任务分解为两个可并行执行的子任务。
+        输出 JSON：{subtask_1: string, subtask_2: string}
+
+  - node_id: member_1
+    name: 组员一执行
+    node_type: agent
+    output_name: member_1_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是团队成员。执行分配的任务并输出结果。
+        输出 JSON：{completed: boolean, output: string, issues: array}
+
+  - node_id: member_2
+    name: 组员二执行
+    node_type: agent
+    output_name: member_2_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是团队成员。执行分配的任务并输出结果。
+        输出 JSON：{completed: boolean, output: string, issues: array}
+
+  - node_id: team_lead_summary
+    name: 组长汇总
+    node_type: agent
+    output_name: report
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是团队组长。汇总两名组员的执行结果，生成团队报告。
+        输出 JSON：{team_status: string, deliverables: array, blockers: array}
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: team_lead_agent
+  - edge_id: e2
+    source_node_id: team_lead_agent
+    target_node_id: member_1
+  - edge_id: e3
+    source_node_id: member_1
+    target_node_id: member_2
+  - edge_id: e4
+    source_node_id: member_1
+    target_node_id: team_lead_summary
+  - edge_id: e5
+    source_node_id: member_2
+    target_node_id: team_lead_summary

@@ -1,0 +1,170 @@
+# =============================================================================
+# WFP Check 工作流（.github/workflows/wfp-check.yml）
+#
+# 目标（arch_review_v2_tasks 6.4，CHG-32；卡 A7/A10；DC-13；AC-05）：
+#   1. pull_request 触发，paths 过滤 examples/** 与 docs/yaml-spec.md；
+#   2. checkout 双 ref（base + head）→ pip install -e head/ 安装 wfp CLI；
+#   3. 依次 wfp validate head/examples/（pipefail，非零 exit → job 失败 →
+#      阻断合并，评审「失败即阻断」语义）+ wfp diff base/examples/<f>
+#      head/examples/<f>（双侧均存在且内容有差异的文件逐个语义 diff；
+#      diff 有变更也是 exit 0，信息非错误）；
+#   4. 结果汇总 PR comment 用官方 actions/github-script（DC-13 否决自研
+#      composite Action，零自研 Action 依赖）。
+#
+# 说明：本文件为配置产出物；真实 PR 评论属 N 类禁试移交项（§13.1，AC-05
+# N 部分）。命令序列与 scripts/simulate_wfp_action.py（6.5）保持一致。
+# =============================================================================
+
+name: WFP Check
+
+on:
+  pull_request:
+    paths:
+      - "examples/**"
+      - "docs/yaml-spec.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  wfp-check:
+    name: wfp-check (validate + diff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+
+      - name: Checkout base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install platform package (wfp CLI)
+        # 以 head 侧源码安装 wfp 入口（[project.scripts]，GK-09 依赖段零改动）
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e head/
+
+      - name: Discover changed example files
+        # 变更文件发现：双侧 examples/ 的 *.yaml 并集，
+        # 分类 added / removed / changed（双侧均在但内容有差异）。
+        run: |
+          mkdir -p /tmp/wfp-reports
+          (cd head/examples && find . -name '*.yaml' | sed 's|^\./||' | sort) > /tmp/wfp-reports/head-files.txt
+          (cd base/examples && find . -name '*.yaml' | sed 's|^\./||' | sort) > /tmp/wfp-reports/base-files.txt
+          comm -13 /tmp/wfp-reports/base-files.txt /tmp/wfp-reports/head-files.txt > /tmp/wfp-reports/added.txt
+          comm -23 /tmp/wfp-reports/base-files.txt /tmp/wfp-reports/head-files.txt > /tmp/wfp-reports/removed.txt
+          : > /tmp/wfp-reports/changed.txt
+          comm -12 /tmp/wfp-reports/base-files.txt /tmp/wfp-reports/head-files.txt | while read -r f; do
+            if ! cmp -s "base/examples/$f" "head/examples/$f"; then
+              echo "$f" >> /tmp/wfp-reports/changed.txt
+            fi
+          done
+
+      - name: Validate head examples (fail-blocking)
+        # pipefail：wfp validate 非零 exit → 本步骤失败 → job 失败 → 阻断合并
+        run: |
+          set -o pipefail
+          wfp validate head/examples/ | tee /tmp/wfp-reports/validate.txt
+
+      - name: Semantic diff changed files
+        # 仅对双侧均存在且内容有差异的文件做语义 diff（有变更也是 exit 0）
+        run: |
+          set -o pipefail
+          while read -r f; do
+            [ -z "$f" ] && continue
+            safe=$(echo "$f" | tr '/' '_')
+            wfp diff "base/examples/$f" "head/examples/$f" | tee "/tmp/wfp-reports/diff-$safe.txt"
+          done < /tmp/wfp-reports/changed.txt
+
+      - name: Post PR comment (wfp report)
+        # 官方 actions/github-script 汇总报告（DC-13）；validate 失败时仍发布
+        # 报告（if: always()），job 结论以 validate 步骤失败为准（阻断合并）。
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportDir = '/tmp/wfp-reports';
+            const marker = '<!-- wfp-check-report -->';
+            const read = (name) => {
+              try {
+                return fs.readFileSync(`${reportDir}/${name}`, 'utf8').trim();
+              } catch (e) {
+                return '';
+              }
+            };
+            const lines = [];
+            lines.push(marker);
+            lines.push('## WFP Check 报告');
+            lines.push('');
+            const added = read('added.txt');
+            const removed = read('removed.txt');
+            if (added) {
+              lines.push('**新增范例文件**');
+              lines.push('```');
+              lines.push(added);
+              lines.push('```');
+              lines.push('');
+            }
+            if (removed) {
+              lines.push('**删除范例文件**');
+              lines.push('```');
+              lines.push(removed);
+              lines.push('```');
+              lines.push('');
+            }
+            lines.push('**wfp validate（head/examples/）**');
+            lines.push('```');
+            lines.push(read('validate.txt') || '（未产出：validate 步骤未执行或异常终止）');
+            lines.push('```');
+            lines.push('');
+            const diffFiles = fs.existsSync(reportDir)
+              ? fs.readdirSync(reportDir)
+                  .filter((f) => f.startsWith('diff-') && f.endsWith('.txt'))
+                  .sort()
+              : [];
+            for (const df of diffFiles) {
+              const label = df.slice('diff-'.length, -'.txt'.length).replace(/_/g, '/');
+              lines.push(`**语义 diff：${label}**`);
+              lines.push('```');
+              lines.push(read(df));
+              lines.push('```');
+              lines.push('');
+            }
+            if (!diffFiles.length) {
+              lines.push('无双侧变更文件（新增/删除的文件不参与语义 diff）。');
+            }
+            const body = lines.join('\n');
+            const { owner, repo } = context.repo;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

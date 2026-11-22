@@ -1,0 +1,61 @@
+# =============================================================================
+# 范例九：子工作流嵌套（examples/subworkflow_nesting/subworkflow_nesting.yaml）
+#
+# 场景：触发器 → 子工作流调用（内含 Agent 分析）
+# 覆盖：子工作流嵌套、输入输出映射、ISOLATE 上下文策略
+# 解析前提：被调用的 sequential_pipeline 须已登记到平台定义库，
+#   运行期按 subworkflow_definition_id 取最新版本；范例库仅加载主定义文本。
+# =============================================================================
+spec_version: "1.1"
+definition_id: subworkflow_nesting
+name: 子工作流嵌套范例
+definition_version: 1
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: 分析主题
+
+outputs:
+  - name: sub_report
+    type: object
+    description: 子工作流回传的分析报告（由 report 映射而来）
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        topic: topic
+
+  - node_id: call_subworkflow
+    name: 调用子工作流
+    node_type: subworkflow
+    output_name: sub_report
+    configuration:
+      subworkflow_definition_id: sequential_pipeline
+      input_mapping:
+        topic: topic
+      output_mapping:
+        sub_report: report
+      context_strategy: isolate
+      max_nesting_depth: 5
+
+  - node_id: display_result
+    name: 输出展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - sub_report
+      display_title: 子工作流分析报告
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: call_subworkflow
+  - edge_id: e2
+    source_node_id: call_subworkflow
+    target_node_id: display_result

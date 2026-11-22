@@ -1,0 +1,21 @@
+# =============================================================================
+# 非法样本：重复节点标识
+# 预期错误码：WF_VALIDATION_FAILED（返回重复标识清单）
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_duplicate_node_id
+name: 重复节点标识样本
+nodes:
+  - node_id: dup_node
+    name: 第一个
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: dup_node
+    name: 第二个
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+edges: []
+inputs: []
+outputs: []

@@ -1,0 +1,20 @@
+# =============================================================================
+# 合法样本：单触发器节点（连线列表为空）
+# 用途：验证「连线列表可为空列表（单节点工作流场景）」的边界规则。
+# =============================================================================
+spec_version: "1.0"
+definition_id: single_trigger_node
+name: 单触发器节点
+definition_version: 1
+
+inputs: []
+outputs: []
+
+nodes:
+  - node_id: trigger_manual
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+
+edges: []

@@ -1,0 +1,416 @@
+# 非法样本：51 节点（超过第一阶段体积上限）
+spec_version: "1.0"
+definition_id: invalid_definition_too_large
+name: 超限51节点定义
+definition_version: 1
+
+inputs: []
+outputs: []
+
+nodes:
+  - node_id: trigger_manual
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: agent_01
+    name: 节点01
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_02
+    name: 节点02
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_03
+    name: 节点03
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_04
+    name: 节点04
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_05
+    name: 节点05
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_06
+    name: 节点06
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_07
+    name: 节点07
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_08
+    name: 节点08
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_09
+    name: 节点09
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_10
+    name: 节点10
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_11
+    name: 节点11
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_12
+    name: 节点12
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_13
+    name: 节点13
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_14
+    name: 节点14
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_15
+    name: 节点15
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_16
+    name: 节点16
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_17
+    name: 节点17
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_18
+    name: 节点18
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_19
+    name: 节点19
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_20
+    name: 节点20
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_21
+    name: 节点21
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_22
+    name: 节点22
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_23
+    name: 节点23
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_24
+    name: 节点24
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_25
+    name: 节点25
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_26
+    name: 节点26
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_27
+    name: 节点27
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_28
+    name: 节点28
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_29
+    name: 节点29
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_30
+    name: 节点30
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_31
+    name: 节点31
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_32
+    name: 节点32
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_33
+    name: 节点33
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_34
+    name: 节点34
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_35
+    name: 节点35
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_36
+    name: 节点36
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_37
+    name: 节点37
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_38
+    name: 节点38
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_39
+    name: 节点39
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_40
+    name: 节点40
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_41
+    name: 节点41
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_42
+    name: 节点42
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_43
+    name: 节点43
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_44
+    name: 节点44
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_45
+    name: 节点45
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_46
+    name: 节点46
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_47
+    name: 节点47
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_48
+    name: 节点48
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_49
+    name: 节点49
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_50
+    name: 节点50
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: agent_01
+  - edge_id: e2
+    source_node_id: agent_01
+    target_node_id: agent_02
+  - edge_id: e3
+    source_node_id: agent_02
+    target_node_id: agent_03
+  - edge_id: e4
+    source_node_id: agent_03
+    target_node_id: agent_04
+  - edge_id: e5
+    source_node_id: agent_04
+    target_node_id: agent_05
+  - edge_id: e6
+    source_node_id: agent_05
+    target_node_id: agent_06
+  - edge_id: e7
+    source_node_id: agent_06
+    target_node_id: agent_07
+  - edge_id: e8
+    source_node_id: agent_07
+    target_node_id: agent_08
+  - edge_id: e9
+    source_node_id: agent_08
+    target_node_id: agent_09
+  - edge_id: e10
+    source_node_id: agent_09
+    target_node_id: agent_10
+  - edge_id: e11
+    source_node_id: agent_10
+    target_node_id: agent_11
+  - edge_id: e12
+    source_node_id: agent_11
+    target_node_id: agent_12
+  - edge_id: e13
+    source_node_id: agent_12
+    target_node_id: agent_13
+  - edge_id: e14
+    source_node_id: agent_13
+    target_node_id: agent_14
+  - edge_id: e15
+    source_node_id: agent_14
+    target_node_id: agent_15
+  - edge_id: e16
+    source_node_id: agent_15
+    target_node_id: agent_16
+  - edge_id: e17
+    source_node_id: agent_16
+    target_node_id: agent_17
+  - edge_id: e18
+    source_node_id: agent_17
+    target_node_id: agent_18
+  - edge_id: e19
+    source_node_id: agent_18
+    target_node_id: agent_19
+  - edge_id: e20
+    source_node_id: agent_19
+    target_node_id: agent_20
+  - edge_id: e21
+    source_node_id: agent_20
+    target_node_id: agent_21
+  - edge_id: e22
+    source_node_id: agent_21
+    target_node_id: agent_22
+  - edge_id: e23
+    source_node_id: agent_22
+    target_node_id: agent_23
+  - edge_id: e24
+    source_node_id: agent_23
+    target_node_id: agent_24
+  - edge_id: e25
+    source_node_id: agent_24
+    target_node_id: agent_25
+  - edge_id: e26
+    source_node_id: agent_25
+    target_node_id: agent_26
+  - edge_id: e27
+    source_node_id: agent_26
+    target_node_id: agent_27
+  - edge_id: e28
+    source_node_id: agent_27
+    target_node_id: agent_28
+  - edge_id: e29
+    source_node_id: agent_28
+    target_node_id: agent_29
+  - edge_id: e30
+    source_node_id: agent_29
+    target_node_id: agent_30
+  - edge_id: e31
+    source_node_id: agent_30
+    target_node_id: agent_31
+  - edge_id: e32
+    source_node_id: agent_31
+    target_node_id: agent_32
+  - edge_id: e33
+    source_node_id: agent_32
+    target_node_id: agent_33
+  - edge_id: e34
+    source_node_id: agent_33
+    target_node_id: agent_34
+  - edge_id: e35
+    source_node_id: agent_34
+    target_node_id: agent_35
+  - edge_id: e36
+    source_node_id: agent_35
+    target_node_id: agent_36
+  - edge_id: e37
+    source_node_id: agent_36
+    target_node_id: agent_37
+  - edge_id: e38
+    source_node_id: agent_37
+    target_node_id: agent_38
+  - edge_id: e39
+    source_node_id: agent_38
+    target_node_id: agent_39
+  - edge_id: e40
+    source_node_id: agent_39
+    target_node_id: agent_40
+  - edge_id: e41
+    source_node_id: agent_40
+    target_node_id: agent_41
+  - edge_id: e42
+    source_node_id: agent_41
+    target_node_id: agent_42
+  - edge_id: e43
+    source_node_id: agent_42
+    target_node_id: agent_43
+  - edge_id: e44
+    source_node_id: agent_43
+    target_node_id: agent_44
+  - edge_id: e45
+    source_node_id: agent_44
+    target_node_id: agent_45
+  - edge_id: e46
+    source_node_id: agent_45
+    target_node_id: agent_46
+  - edge_id: e47
+    source_node_id: agent_46
+    target_node_id: agent_47
+  - edge_id: e48
+    source_node_id: agent_47
+    target_node_id: agent_48
+  - edge_id: e49
+    source_node_id: agent_48
+    target_node_id: agent_49
+  - edge_id: e50
+    source_node_id: agent_49
+    target_node_id: agent_50

@@ -1,0 +1,100 @@
+# =============================================================================
+# CI 工作流（.github/workflows/ci.yml）
+#
+# 目标（arch_review_v2_tasks 4.1 + 5.7，CHG-31；AC-03）：
+#   1. backend job：PYTHONPATH=src 显式设置下 ruff check + pytest -q；
+#   2. frontend job：web/ 下 npm ci + tsc --noEmit + vitest run；
+#   3. examples job：pip install -e . 后 wfp validate examples/（5.7 追加，
+#      15 YAML 全量校验 exit 0，AC-04；G8 产物就绪后合入）；
+#   4. 版本取自 pyproject.toml / package.json 既有声明，不引入新版本约束。
+#
+# 说明：本文件为配置产出物；真实 CI 绿灯属 N 类禁试移交项（§13.1，AC-03 N 部分）。
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install backend dependencies
+        # 依赖清单以 pyproject.toml 为单一事实源；ruff 为 lint 工具链
+        # （不进运行时依赖段，HC-06 零新增主依赖），版本不另行锁定。
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          pip install ruff
+
+      - name: Ruff lint
+        env:
+          PYTHONPATH: src
+        run: ruff check .
+
+      - name: Pytest
+        env:
+          PYTHONPATH: src
+        run: pytest -q
+
+  frontend:
+    name: Frontend (npm ci + tsc + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        # 版本以 web/package-lock.json 锁定口径为准（npm ci 严格按锁文件安装）
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  examples:
+    name: Examples (wfp validate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install platform package (wfp CLI)
+        # [project.scripts] wfp 入口随包安装可用（arch_review_v2 5.1/5.7；
+        # 依赖段零改动，GK-09）
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Validate examples
+        # 15 个 YAML（12 套范例，E18 glob 口径）全量校验 exit 0（AC-04）
+        run: wfp validate examples/

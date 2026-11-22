@@ -1,0 +1,83 @@
+# =============================================================================
+# 漂移检测范例预置 Agent 定义（examples/drift_detection/drift_detection_agents.yaml）
+#
+# 职责：登记漂移检测流水线预置 Agent 的完整描述信息（G4/T232）。
+# 说明：本文件为预置 Agent 定义清单，字段与编排定义中 agent 节点配置对齐，
+#       供范例使用者了解 Agent 职责与输入输出契约（A4.3.a）。
+# 对齐：drift_detector / baseline_missing_agent 与 drift_detection.yaml 中
+#       agent 节点一一对应；baseline_curator 为可选辅助（不在编排内）。
+# =============================================================================
+
+agents:
+  - agent_id: drift_detector
+    name: 漂移检测 Agent
+    role: >-
+      数据漂移判定专家：对比当前数据与基线数据的特征分布偏移，
+      量化漂移程度（drift_score 0~1），标记漂移是否显著。
+    inputs:
+      - name: current_data
+        type: object
+        description: 当前待检测数据（来自 read_current_data 节点输出）
+      - name: baseline_data
+        type: object
+        description: 基线数据（来自 read_baseline_data 节点输出，进入本 Agent 前已确认基线存在）
+    outputs:
+      - name: drift_analysis
+        type: object
+        description: >-
+          漂移分析结果，含 baseline_established（恒 true，进入本 Agent 即基线存在）/
+          drift_detected（是否显著漂移）/drift_score（0~1 漂移分）/
+          shifted_features（偏移特征清单）/notes（说明）
+    model_identifier: qwen3.8-27b
+    system_prompt: >-
+      你是数据漂移检测专家。对比当前数据与基线数据，执行以下工作：
+      1. 识别特征分布偏移（均值/方差/分位数/类别占比）
+      2. 量化漂移程度并给出 drift_score（0~1，越大漂移越显著）
+      3. 漂移显著（drift_score 阈值参考 0.3）时标记 drift_detected 为 true
+      输出 JSON：{baseline_established: true, drift_detected: boolean,
+      drift_score: number, shifted_features: array, notes: string}
+
+  - agent_id: baseline_missing_agent
+    name: 基线未建立结论 Agent
+    role: >-
+      基线未建立时的结论性输出：不做任何漂移推断、不给出
+      drift_detected=true、不编造漂移特征，直接产出
+      baseline_established=false 的结论（不误报）。
+    inputs:
+      - name: current_dataset_id
+        type: string
+        description: 当前数据集标识（来自流水线输入）
+    outputs:
+      - name: baseline_status
+        type: object
+        description: >-
+          基线状态结论，含 baseline_established（false）/
+          drift_detected（false）/drift_score（0）/
+          shifted_features（空清单）/notes（"基线未建立，本次不判定漂移"）
+    model_identifier: qwen3.8-27b
+    system_prompt: >-
+      基线数据集未建立，本次不具备漂移判定条件。
+      不做任何漂移推断、不给出 drift_detected=true、不编造漂移特征。
+      直接输出 JSON：{baseline_established: false, drift_detected: false,
+      drift_score: 0, shifted_features: [], notes: "基线未建立，本次不判定漂移"}
+
+  - agent_id: baseline_curator
+    name: 基线数据管理员（可选辅助）
+    role: >-
+      基线数据集构建指导：说明基线数据集的选择口径（时间窗口/样本量/
+      特征范围），辅助使用者在基线未建立时完成基线构建，
+      使漂移检测进入可判定状态（异常场景 2 的处置辅助）。
+    inputs:
+      - name: current_dataset_id
+        type: string
+        description: 当前数据集标识（作为基线构建参考）
+    outputs:
+      - name: baseline_build_plan
+        type: object
+        description: 基线构建方案（时间窗口/样本量/特征范围/验收标准）
+    model_identifier: qwen3.8-27b
+    system_prompt: >-
+      你是基线数据管理员。为漂移检测设计基线数据集构建方案：
+      1. 给出基线时间窗口与样本量建议
+      2. 明确基线特征范围与验收标准
+      3. 说明基线建立后如何启动漂移检测

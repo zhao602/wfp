@@ -1,0 +1,26 @@
+# =============================================================================
+# 非法样本：孤立节点（从入口不可达）
+# 预期错误码：WF_VALIDATION_FAILED（返回不可达节点清单）
+# =============================================================================
+spec_version: "1.0"
+definition_id: invalid_isolated_node
+name: 孤立节点样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: agent_reachable
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+  - node_id: agent_isolated
+    node_type: agent
+    configuration:
+      model_identifier: primary-model
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: agent_reachable
+inputs: []
+outputs: []

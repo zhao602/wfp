@@ -1,0 +1,76 @@
+# =============================================================================
+# 合法样本：含循环（迭代优化）
+# 用途：验证循环控制流节点解析通过（循环体由循环节点内部驱动，非连线成环）。
+# =============================================================================
+spec_version: "1.0"
+definition_id: valid_with_loop
+name: 含循环的迭代优化流水线
+definition_version: 1
+
+inputs:
+  - name: draft_topic
+    type: string
+    required: true
+    description: 待优化主题
+
+outputs:
+  - name: final_draft
+    type: object
+    description: 最终稿
+
+nodes:
+  - node_id: trigger_manual
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+
+  - node_id: draft_agent
+    name: 初稿生成
+    node_type: agent
+    output_name: draft
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 生成初稿。
+
+  - node_id: review_loop
+    name: 评审循环
+    node_type: control_flow
+    configuration:
+      control_flow_kind: loop
+      loop_body_entry: review_agent
+      loop_termination_condition: "quality_score >= 90"
+      max_iterations: 5
+
+  - node_id: review_agent
+    name: 评审打分
+    node_type: agent
+    output_name: quality_score
+    configuration:
+      model_identifier: primary-model
+      system_prompt: 对草稿打分并输出 quality_score。
+
+  - node_id: finalize_node
+    name: 定稿输出
+    node_type: tool
+    output_name: final_draft
+    configuration:
+      tool_identifier: draft_finalizer
+      tool_source: local
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: draft_agent
+  - edge_id: e2
+    source_node_id: draft_agent
+    target_node_id: review_loop
+  - edge_id: e3
+    source_node_id: review_loop
+    target_node_id: review_agent
+  - edge_id: e4
+    source_node_id: review_agent
+    target_node_id: review_loop
+  - edge_id: e5
+    source_node_id: review_loop
+    target_node_id: finalize_node

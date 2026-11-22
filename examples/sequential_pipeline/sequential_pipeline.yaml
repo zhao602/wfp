@@ -1,0 +1,59 @@
+# =============================================================================
+# 范例一：顺序流水线（examples/sequential_pipeline/sequential_pipeline.yaml）
+#
+# 场景：触发器 → 数据源 → Agent 分析（经工具选项生成报告）
+# 覆盖：触发器、数据源、Agent 三类节点
+# 迁移说明（merge_tool_into_agent_node DC-E / CHG-23）：原 generate_report
+#   （tool 节点）已并入 Agent 节点——tool_identifier 并入 available_tools，
+#   工具入参由 LLM 从共享状态推理；Agent 节点承接上下游连线与最终输出。
+# =============================================================================
+spec_version: "1.0"
+definition_id: sequential_pipeline
+name: 顺序流水线范例
+definition_version: 1
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: 分析主题
+
+outputs:
+  - name: report
+    type: object
+    description: 分析报告
+
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template:
+        topic: topic
+
+  - node_id: read_data
+    name: 读取数据集
+    node_type: data_source
+    output_name: dataset
+    configuration:
+      connection_reference: demo_warehouse
+      query: "SELECT id, nickname FROM 'user'"
+
+  - node_id: analyze
+    name: 数据分析
+    node_type: agent
+    output_name: report
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: '你是一名数据分析师，请分析输入数据；可调用已绑定的 report_builder 工具生成分析报告，工具入参请从共享状态推理。请以 JSON 格式返回结果，包含 "model_output" 字段，例如：{"model_output": "分析结果内容"}'
+      available_tools:
+        - report_builder
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: read_data
+  - edge_id: e2
+    source_node_id: read_data
+    target_node_id: analyze

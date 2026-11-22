@@ -1,0 +1,112 @@
+# =============================================================================
+# 范例十：实时数据订阅触发（examples/realtime_subscription/realtime_subscription_workflow.yaml）
+#
+# 场景：Kafka 数据流事件触发工作流 → Agent 处理事件
+# 覆盖：data_event 触发器、实时数据订阅、事件驱动工作流
+# =============================================================================
+spec_version: "1.1"
+definition_id: realtime_subscription_workflow
+name: 实时数据订阅触发范例
+definition_version: 1
+
+inputs:
+  - name: event_data
+    type: object
+    required: true
+    description: 事件数据（由数据流自动注入）
+  - name: event_type
+    type: string
+    required: true
+    description: 事件类型
+
+outputs:
+  - name: event_classification
+    type: object
+    description: 事件分类结果（category / priority / requires_action）
+
+nodes:
+  - node_id: trigger_on_event
+    name: 数据事件触发
+    node_type: trigger
+    configuration:
+      trigger_type: data_event
+      event_source: kafka:order_events_topic
+      input_template:
+        event_data: event_data
+        event_type: event_type
+
+  - node_id: classify_event
+    name: 事件分类 Agent
+    node_type: agent
+    output_name: event_classification
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是事件分类 Agent。分析事件数据并分类。
+        输出 JSON：{category: string, priority: string, requires_action: boolean}
+        priority 只能取 high / normal / low 三值，路由分支按该取值分发，
+        未覆盖的取值由默认分支进入常规处理。
+
+  - node_id: route_by_category
+    name: 按类别路由
+    node_type: control_flow
+    configuration:
+      control_flow_kind: conditional_branch
+      conditions:
+        - target_node_id: process_high_priority
+          expression: event_classification.priority == 'high'
+          label: 高优先级处理
+        - target_node_id: process_normal
+          expression: event_classification.priority == 'normal'
+          label: 常规处理
+      default_branch_target: process_normal
+
+  - node_id: process_high_priority
+    name: 高优先级处理 Agent
+    node_type: agent
+    output_name: high_priority_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是高优先级事件处理 Agent。立即处理事件并生成紧急响应。
+        输出 JSON：{action_taken: string, result: string, alert_sent: boolean}
+
+  - node_id: process_normal
+    name: 常规处理 Agent
+    node_type: agent
+    output_name: normal_result
+    configuration:
+      model_identifier: qwen3.8-27b
+      system_prompt: >-
+        你是常规事件处理 Agent。处理事件并生成标准响应。
+        输出 JSON：{action_taken: string, result: string}
+
+  - node_id: display_result
+    name: 处理结果展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - event_classification
+        - high_priority_result
+        - normal_result
+      display_title: 事件处理结果
+
+edges:
+  - edge_id: e1
+    source_node_id: trigger_on_event
+    target_node_id: classify_event
+  - edge_id: e2
+    source_node_id: classify_event
+    target_node_id: route_by_category
+  - edge_id: e3
+    source_node_id: route_by_category
+    target_node_id: process_high_priority
+  - edge_id: e4
+    source_node_id: route_by_category
+    target_node_id: process_normal
+  - edge_id: e5
+    source_node_id: process_high_priority
+    target_node_id: display_result
+  - edge_id: e6
+    source_node_id: process_normal
+    target_node_id: display_result

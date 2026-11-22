@@ -1,0 +1,16 @@
+# =============================================================================
+# 非法样本：规范版本不支持
+# 预期错误码：WF_UNSUPPORTED_VERSION
+# 说明：spec_version 高于引擎支持上限，且不得降级解析。
+# =============================================================================
+spec_version: "9.9"
+definition_id: invalid_unsupported_version
+name: 版本不支持样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+edges: []
+inputs: []
+outputs: []
