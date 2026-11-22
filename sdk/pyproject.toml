@@ -27,6 +27,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Intended Audience :: Developers",
 ]
+keywords = ["workflow", "orchestration", "agent", "llm", "sdk", "automation"]
+authors = [
+    {name = "wfp-orchestration contributors"},
+]
+
+# 发布前回填（docs/release-sdk.md 预检清单 #1）：
+# remote 确定后取消注释并替换为真实地址，再执行 PyPI 上传。
+# [project.urls]
+# Homepage = "https://github.com/<org>/wfp"
+# Repository = "https://github.com/<org>/wfp"
 
 [tool.setuptools.packages.find]
 where = ["."]

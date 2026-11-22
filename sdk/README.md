@@ -1,14 +1,18 @@
 # wfp-sdk —— 工作流编排平台嵌入 SDK（Python）
 
-> 版本 0.1.0（roadmap B2）｜契约：[`docs/sdk-contract.md`](../docs/sdk-contract.md)（冻结）
+> 版本 0.2.0｜契约：[`docs/sdk-contract.md`](../docs/sdk-contract.md)（冻结）
 > 同步客户端，仅依赖 `httpx>=0.24`，零平台内部依赖（隔离 venv 可独立安装）。
+> 许可：Apache-2.0（随包分发）。
 
 ## 安装
 
 ```bash
-# 从仓库 sdk/ 目录构建 wheel 并安装到隔离环境
-python -m pip wheel . --no-deps -w dist
-python -m pip install dist/wfp_sdk-0.1.0-py3-none-any.whl
+# 方式一：PyPI（发布后；发布状态见 ../docs/release-sdk.md）
+pip install wfp-sdk
+
+# 方式二：从仓库 sdk/ 目录构建 wheel 并安装
+python -m build --wheel --outdir dist
+python -m pip install dist/wfp_sdk-0.2.0-py3-none-any.whl
 ```
 
 ## 30 行端到端
@@ -69,6 +73,17 @@ with WorkflowClient("http://127.0.0.1:8310") as client:
   `WorkflowClient(base_url, token=...)` 传预签发令牌即可；
 - 治理降级模式（local profile）无需令牌，回退平台默认租户。
 
-## 版本策略（契约 §5）
+## 版本策略与兼容矩阵（契约 §5）
 
-`/api/v1` 面冻结；SDK 语义化版本；破坏性契约变更须 `/api/v2` 或 SDK major。
+- **semver**：SDK 语义化版本；破坏性契约变更须 `/api/v2` 或 SDK MAJOR；
+  MINOR 仅追加能力，PATCH 仅修复。
+- **`/api/v1` 面冻结**；工作流定义规范 `spec_version` 遵循平台
+  [1.x 只增不删承诺](../docs/spec-versioning.md)。
+
+| SDK 版本 | API 面 | spec_version | 说明 |
+|---|---|---|---|
+| 0.1.x | `/api/v1`（冻结） | 1.0 / 1.1 | B2 首发方法面（9 方法） |
+| **0.2.0** | `/api/v1`（冻结） | 1.0 / 1.1 | 与平台 v0.2.0 同步发布；平台 usage 汇总等 B7 新增端点尚未纳入 SDK 方法面（后续 MINOR） |
+
+- 平台侧 `spec_version` 新增（如未来 1.2）对 SDK 透传无感：定义文本原样提交，
+  校验结果由平台返回——SDK 不内置版本枚举。
