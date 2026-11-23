@@ -4,6 +4,64 @@
 
 ---
 
+## [0.3.0] - 2026-11-23
+
+> **版本覆盖说明**：本版本覆盖 M2（独立 worker 进程）与 M3（实例级取消与
+> 超时）两个批次线；M2 未单独升位，并入本版评估收口。
+
+### M2 独立 worker 进程与读穿透（并入本版）
+
+- **独立 worker 进程**（`python -m orchestration_platform.worker`）：
+  认领/租约/心跳/接管收口全链——与 api 同镜像、同任务、不同 command；
+  `EXECUTION_MODE=worker` 环境切换。
+- **接管语义（at-least-once）**：kill -9 / 宕机零清理，租约到期后由
+  其他 worker `take_over_expired` 接管；重放范围 = 被杀时正在执行的节点
+  （上游节点从检查点恢复不重放）。
+- **读穿透**：worker 执行实例不在 api 内存注册表，`GET /instances/{id}`
+  与 SSE 经事件仓储回读兜底。
+- **事件终态持久化**：`PersistingInstanceRegistry._INSTANCE_EVENT_MAP`
+  状态映射——cancelled/failed/succeeded/waiting_review 随事件落账。
+
+### M3 实例级取消与超时（P5）+ B9 收口
+
+- **取消标志与迁移**：`v1_9_job_cancel_requested.sql`（
+  `cancel_requested` 列 + 活跃作业部分索引）；`IExecutionQueue`
+  +`request_cancel`/`find_active_by_instance`（local_file/postgres 双后端）。
+- **取消双路**：抢占式 `runner_task.cancel()` 为主 + 协作式
+  `cancellation_checker`（Scheduler 构造注入）节点边界兜底；
+  in_process 快路径零行为变化。
+- **取消端点 worker 扩展**：`POST /instances/{id}/cancel` 读穿透三态
+  （活跃置标志 / 终态 409 `INSTANCE_CANCEL_CONFLICT` / 不可见 404）；
+  pending 盲区 api 侧落 `INSTANCE_CANCELLED` 事件即取消即可见；
+  认领/接管时标志收口 + 幂等事件补落（查重后写）。
+- **实例级看门狗**：`INSTANCE_TIMEOUT_SECONDS`（默认 1800，支持小数秒）
+  ——in_process/worker 两模式同点；超时终态 failed + 失败码
+  `WF_INSTANCE_TIMEOUT`（非 cancelled、非 timeout_terminated，终态集合
+  冻结）；`asyncio.TimeoutError`（Exception 系）与 `CancelledError`
+  （BaseException 系）严格分流。
+- **cron 定义版本钉**：cron fire 作业钉 `definition_version`，worker
+  重建按 (definition_id, version) 精确取版——fire→认领窗口升版不漂移。
+- **双 drill 留档**（`scripts/drill/` + `_drills/*.json`）：kill -9 强杀
+  接管（taskkill /F 等价，检查点续跑、中断节点 at-least-once 重放）+
+  双副本并发认领互斥（6 作业零双执行）。
+- **已知项（D9）**：`IExecutionQueue.heartbeat()` 续租走
+  `EXECUTION_QUEUE_LEASE_SECONDS` 默认、无 TTL 参——生产调整租约请统一
+  用环境变量全链对齐（详见 `docs/deploy.md` §10.4）。
+
+### 依赖与门禁
+
+- **门禁基线（0.3.0）**：全量 pytest **3584 passed + 3 skipped exit 0**
+  （M2 收口基 3526+3 + M3 增量 58）；vitest 123 文件 1007+13；
+  typecheck 13 既有错误零新增；e2e 6/6（D1 realtime 503 缺陷断言锁定）；
+  四基准 M3 vs M2 HEAD 同机 A/B 对照零回归（当日绝对值因机器内存状态
+  漂移 +20~37%，A/B 证据随批归档）。
+- **欠账登记**：`/results`、`/events` 列表、`/recover`、`/review` 四端点
+  worker 适配（M4+）；配额 `count_active_by_tenant` worker 落库口径；
+  D9 heartbeat TTL 参（接口演进 M4+）；PG 事件 payload 读丢失（既有）；
+  D1 realtime `/subscriptions` 恒 503（e2e 断言锁定）。
+
+---
+
 ## [0.2.0] - 2026-11-22
 
 > **版本编号说明**：自 B 网格批次线（2026-11 平台重构）起，版本号以 `pyproject.toml`

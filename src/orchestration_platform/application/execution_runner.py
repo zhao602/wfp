@@ -31,6 +31,7 @@ from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     INSTANCE_NOT_FOUND,
     NODE_TOOL_ARGUMENT_MISMATCH,
+    WF_INSTANCE_TIMEOUT,
     WF_NODE_EXECUTION_FAILED,
     DomainError,
     WorkflowValidationError,
@@ -633,6 +634,10 @@ async def run_and_record(
     不伪造结束记录（无终态时保留开始记录）。
     """
     run_started_at = datetime.now(timezone.utc)
+    # M3 实例级看门狗上界（design D3）：try 外求值——超时分支引用安全
+    # （早期 await 抛 TimeoutError 时亦已绑定）；缺省 1800（首次接线，
+    # settings 既有字段）；None → wait_for 无上界
+    instance_timeout = get_settings().instance_timeout_seconds
     try:
         registry.update_status(instance_id, "running")
 
@@ -688,11 +693,21 @@ async def run_and_record(
         )
 
         # W2a 租户穿参：rt_run 携带真实租户（四触发路径均流入），
-        # 传入调度器供 node.* 领域事件与节点级计量按租户发布/记录
-        final_state = await scheduler.execute(
-            compiled, initial_state, instance_id, trace_id,
-            resume_checkpoint=resume_checkpoint,
-            tenant_id=rt_run.tenant_id,
+        # 传入调度器供 node.* 领域事件与节点级计量按租户发布/记录；
+        # M3 实例级看门狗（design D3）：wait_for 上界两模式同点生效——
+        # 超时取消内部执行并抛 asyncio.TimeoutError（Exception 系），
+        # 与外部/内部取消的 CancelledError（BaseException 系）严格分流、
+        # 无继承交集（Python 3.10：asyncio.TimeoutError 非内建 TimeoutError
+        # 别名，except 顺序无关、零歧义）；超时 → failed 终态 +
+        # WF_INSTANCE_TIMEOUT（非 cancelled、非 timeout_terminated——
+        # sdk-contract 终态集合冻结，B2 裁决）
+        final_state = await asyncio.wait_for(
+            scheduler.execute(
+                compiled, initial_state, instance_id, trace_id,
+                resume_checkpoint=resume_checkpoint,
+                tenant_id=rt_run.tenant_id,
+            ),
+            timeout=instance_timeout,
         )
 
         # 终态共享状态缓存（B2 嵌入 SDK）：供 GET /instances/{id}/results 读取
@@ -792,6 +807,60 @@ async def run_and_record(
                 "review_instructions": signal.review_instructions,
             },
         )
+    except asyncio.TimeoutError:
+        # M3 实例级超时分支（design D3）：看门狗到时——内部执行已被
+        # wait_for 取消；以 failed 终态收口 + WF_INSTANCE_TIMEOUT 错误码
+        # （非 cancelled：无取消请求；非 timeout_terminated：终态集合冻结）；
+        # 必须先于 except Exception（TimeoutError 属 Exception 系）；
+        # 作业照常 complete（超时是正常业务结局，worker 收口不受影响）
+        run_finished_at = datetime.now(timezone.utc)
+        registry.update_status(instance_id, "failed")
+        registry.append_event(instance_id, {
+            "event_id": str(uuid.uuid4()),
+            "instance_id": instance_id,
+            "event_type": "INSTANCE_FAILED",
+            "node_id": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "payload": {
+                "error": WF_INSTANCE_TIMEOUT,
+                "timeout_seconds": instance_timeout,
+            },
+        })
+
+        # 领域事件：实例超时失败发布（发布点 P3，error_code 定格实例级）
+        rt_run = registry.get(instance_id)
+        await _publish_instance_domain_event(
+            rt_run,
+            trace_id,
+            "instance.failed",
+            {
+                "error_code": WF_INSTANCE_TIMEOUT,
+                "error_message": summarize_text(
+                    f"实例执行超时（{instance_timeout} 秒）"
+                ),
+            },
+        )
+
+        if run_log_recorder is not None:
+            try:
+                run_log_recorder.end_run(
+                    "failed",
+                    finished_at=run_finished_at,
+                    duration_ms=max(
+                        0,
+                        int((run_finished_at - run_started_at).total_seconds() * 1000),
+                    ),
+                    error={
+                        "error_code": WF_INSTANCE_TIMEOUT,
+                        "error_message": f"实例执行超时（{instance_timeout} 秒）",
+                    },
+                )
+            except Exception:
+                logging.warning(
+                    "运行日志 end_run(timeout) 接线失败: instance_id=%s",
+                    instance_id,
+                    exc_info=True,
+                )
     except Exception as exc:
         run_finished_at = datetime.now(timezone.utc)
         registry.update_status(instance_id, "failed")

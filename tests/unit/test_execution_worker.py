@@ -225,7 +225,7 @@ class TestWorkerMechanics:
         queue = _StubQueue()
         executor_registry = _stub_executor_registry(block_first_agent=True)
 
-        async def _slow_run(job):
+        async def _slow_run(job, cancel_event=None):
             await asyncio.sleep(0.08)
             return True
 
@@ -483,7 +483,7 @@ class TestPersistingInstanceRegistry:
             {
                 "event_id": "evt-p3-1",
                 "instance_id": "inst-p3",
-                "event_type": "INSTANCE_CANCELLED",
+                "event_type": "SOME_FUTURE_TYPE",
                 "node_id": None,
                 "timestamp": _NOW_ISO,
                 "payload": {},
@@ -491,7 +491,34 @@ class TestPersistingInstanceRegistry:
         )
         await registry.flush()
         events = await repo.list_for_instance("inst-p3")
-        assert events == [], "未映射事件类型不持久化（M2 worker 模式不触发取消）"
+        assert events == [], "未映射事件类型不持久化（前向兼容口径维持）"
+
+    async def test_instance_cancelled_persisted(self, tmp_path):
+        """M3（design D5）：runner 取消分支的 INSTANCE_CANCELLED 注册表
+        事件持久化（running 作业取消读穿透可见性）。"""
+        repo = LocalFileEventRepository(storage_root=str(tmp_path))
+        registry = PersistingInstanceRegistry(repo)
+        registry.register(
+            worker_mod.InstanceRuntime(
+                instance_id="inst-p3c", definition_id="def-p3c"
+            )
+        )
+        registry.append_event(
+            "inst-p3c",
+            {
+                "event_id": "evt-p3c-1",
+                "instance_id": "inst-p3c",
+                "event_type": "INSTANCE_CANCELLED",
+                "node_id": None,
+                "timestamp": _NOW_ISO,
+                "payload": {},
+            },
+        )
+        await registry.flush()
+        events = await repo.list_for_instance("inst-p3c")
+        assert len(events) == 1
+        assert events[0].event_type == EventType.INSTANCE_CANCELLED
+        assert events[0].payload.get("definition_id") == "def-p3c"
 
     async def test_persist_failure_does_not_block_registry(self, tmp_path):
         class _FailingRepo:

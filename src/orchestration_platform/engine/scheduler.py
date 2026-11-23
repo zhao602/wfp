@@ -16,7 +16,7 @@ import logging
 import traceback
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
@@ -296,6 +296,7 @@ class Scheduler:
         event_callback: Optional[NodeEventCallback] = None,
         run_log_recorder: Optional[Any] = None,
         domain_event_publisher: Optional[IDomainEventPublisher] = None,
+        cancellation_checker: Optional[Callable[[], bool]] = None,
     ) -> None:
         """构造调度器。
 
@@ -308,6 +309,13 @@ class Scheduler:
             domain_event_publisher —— 领域事件发布器（arch_review_v2_tasks_wave2
                                     CHG-61/DC-23，发布点 P5/P6）；缺省 None 时
                                     零发布（基线行为不变）。
+            cancellation_checker —— 协作式取消检查器（M3 P5 实例级取消，
+                                    roadmap design D2 兜底路径）；提供时于
+                                    节点边界（主循环游标推进处）轮询，返回
+                                    True 即以 CancelledError 终止执行（由
+                                    run_and_record CancelledError 分支统一
+                                    落 cancelled 终态）；缺省 None 零行为
+                                    （HC-01，既有调用点零改动）。
         """
         self._registry = executor_registry
         self._checkpoint_repo = checkpoint_repository
@@ -316,6 +324,7 @@ class Scheduler:
         self._event_callback = event_callback
         self._run_log_recorder = run_log_recorder
         self._domain_event_publisher = domain_event_publisher
+        self._cancellation_checker = cancellation_checker
 
     async def execute(
         self,
@@ -355,6 +364,15 @@ class Scheduler:
             state_manager._state.round_index = round_index
 
         while current_node_id is not None:
+            # M3 协作式取消兜底（design D2）：节点边界轮询外部取消信号，
+            # True 即 CancelledError 终止（run_and_record 分支统一落终态）；
+            # checker 为 None 零行为（HC-01）。主循环游标推进处为检查点，
+            # 长驻并行区域内部不轮询（抢占式 task.cancel 主路径覆盖）。
+            if (
+                self._cancellation_checker is not None
+                and self._cancellation_checker()
+            ):
+                raise asyncio.CancelledError()
             node = compiled.get_node(current_node_id)
             if node is None:
                 break

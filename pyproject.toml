@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orchestration-platform"
-version = "0.2.0"
+version = "0.3.0"
 description = "企业级多 Agent 工作流编排与治理平台 —— YAML 声明式契约 + 画布双模编辑 + 嵌入 SDK"
 readme = "README.md"
 license = {text = "Apache-2.0"}

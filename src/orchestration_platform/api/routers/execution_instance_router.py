@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from orchestration_platform.api.instance_read_through import (
     read_instance_snapshot,
+    record_instance_cancelled_event,
     resolve_event_reader,
 )
 from orchestration_platform.application.execution_runner import (
@@ -72,6 +73,9 @@ from orchestration_platform.governance.tenant.quota_gate import (
 )
 from orchestration_platform.observability.run_log.fields import (
     BUSINESS_CATEGORY_DEFAULT,
+)
+from orchestration_platform.persistence.abstractions.execution_queue import (
+    IExecutionQueue,
 )
 
 router = APIRouter(tags=["执行实例"])
@@ -323,20 +327,113 @@ async def stream_instance_events(instance_id: str):
     )
 
 
+# =============================================================================
+# M3 worker 模式取消（design D5 读穿透三态 + 盲区事件）
+# =============================================================================
+
+_execution_queue_instance: Optional[IExecutionQueue] = None
+_execution_queue_failed = False
+
+
+def _get_execution_queue() -> Optional[IExecutionQueue]:
+    """惰性构造执行队列（cancel worker 路径；测试经 monkeypatch 注入）。
+
+    经 build_execution_queue 按 storage_backend 构造（延迟导入，零新增
+    依赖）；失败降级 None + 告警（worker 取消不可用，404 口径兜底）。
+    """
+    global _execution_queue_instance, _execution_queue_failed
+    if _execution_queue_instance is not None:
+        return _execution_queue_instance
+    if _execution_queue_failed:
+        return None
+    try:
+        _execution_queue_instance = build_execution_queue()
+        return _execution_queue_instance
+    except Exception:
+        _execution_queue_failed = True
+        logging.warning("执行队列构造失败，worker 模式取消不可用", exc_info=True)
+        return None
+
+
+async def _cancel_worker_instance(instance_id: str) -> Optional[dict]:
+    """worker 模式取消：队列标志置位 + 盲区事件落账（design D5 三态）。
+
+    - 活跃作业（pending/running）→ request_cancel 幂等置标志：
+      · pending（未认领盲区）→ 端点侧补 INSTANCE_CANCELLED 事件
+        （GET/SSE 立即可见 cancelled；worker 认领时标志检查不执行直接
+        收口，不重复落事件）；响应为事件推导快照（cancelled）；
+      · running → 仅置标志（取消时延上界 = worker 心跳间隔；终态事件
+        由 runner CancelledError 分支落账）；响应为事件推导快照；
+    - 无活跃作业：事件可见且非可取消态（终态/waiting_review）→ 409
+      INSTANCE_CANCEL_CONFLICT（镜像 in_process 语义）；事件不可见 →
+      返回 None（调用方维持 404）。
+    """
+    queue = _get_execution_queue()
+    if queue is None:
+        return None
+    job = await queue.find_active_by_instance(instance_id)
+    if job is None:
+        snapshot = await read_instance_snapshot(instance_id)
+        if snapshot is None:
+            return None
+        status = str(snapshot.get("status", ""))
+        if status in _TERMINAL_STATUSES or status == "waiting_review":
+            raise InstanceStateConflictError(
+                INSTANCE_CANCEL_CONFLICT,
+                f"实例 {instance_id} 当前无可取消的运行任务（状态 {status}）",
+            )
+        return None
+
+    await queue.request_cancel(job.job_id)
+    if job.status == "pending":
+        await record_instance_cancelled_event(
+            instance_id, definition_id=job.definition_id
+        )
+        snapshot = await read_instance_snapshot(instance_id)
+        if snapshot is not None:
+            return snapshot
+        return {
+            "instance_id": instance_id,
+            "definition_id": job.definition_id,
+            "status": "cancelled",
+            "started_at": None,
+        }
+    snapshot = await read_instance_snapshot(instance_id)
+    if snapshot is not None:
+        return snapshot
+    return {
+        "instance_id": instance_id,
+        "definition_id": job.definition_id,
+        "status": job.status,
+        "started_at": None,
+    }
+
+
 @router.post("/instances/{instance_id}/cancel")
 async def cancel_instance(instance_id: str) -> dict:
     """请求取消执行中的实例（B2 嵌入 SDK：取消能力后端落点）。
 
     契约（docs/sdk-contract.md §1-7）：
-    - 未知实例 → 404（注册表既有 detail）；已终态或无可取消任务
+    - 未知实例 → 404（注册表/读穿透既有 detail）；已终态或无可取消任务
       （task 缺失/已结束，含 waiting_review 挂起态）→ 409
       INSTANCE_CANCEL_CONFLICT（{code, message, details} 同构错误体）；
     - 运行中 → task.cancel() 投递取消，终态由 run_and_record 的
       CancelledError 分支落定（本响应不等待，返回请求时刻快照）；
     - 竞态容忍：任务恰在校验后完成时 task.cancel() 为 no-op，
       客户端以 GET /instances/{id} 轮询到的终态为准。
+
+    M3 worker 模式扩展（design D5）：注册表未命中（实例执行于独立
+    worker 进程）→ 队列标志置位传播取消（取消时延上界 = 心跳间隔）；
+    pending 作业盲区取消补 INSTANCE_CANCELLED 事件（GET/SSE 立即可见）。
+    in_process 注册表路径零变化（design D6 红线）。
     """
-    rt = _instance_registry.get(instance_id)
+    try:
+        rt = _instance_registry.get(instance_id)
+    except HTTPException:
+        result = await _cancel_worker_instance(instance_id)
+        if result is not None:
+            return result
+        raise
 
     if rt.status in _TERMINAL_STATUSES:
         raise InstanceStateConflictError(

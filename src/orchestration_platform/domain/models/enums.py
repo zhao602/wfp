@@ -167,6 +167,8 @@ class EventType(str, Enum):
     INSTANCE_COMPLETED = "instance_completed"          # 实例执行完成（终态 succeeded）
     INSTANCE_FAILED = "instance_failed"                # 实例执行失败（终态 failed）
     INSTANCE_SUSPENDED = "instance_suspended"          # 实例挂起（waiting_review）
+    # ---- M3 实例取消事件（P5 实例级取消，design D5 盲区可见性）----
+    INSTANCE_CANCELLED = "instance_cancelled"          # 实例已取消（终态 cancelled）
 
 
 class ReplayMode(str, Enum):

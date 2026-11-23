@@ -15,16 +15,22 @@
 #      置 cancelled 与接管续跑冲突），租约到期由他 worker 接管；
 #   4. 事件持久化（读穿透数据源）：PersistingInstanceRegistry 注册表 +
 #      事件仓储双写，worker 模式下 API 进程 GET/SSE 经事件仓储回读。
+#   5. 实例级取消（M3 P5，design D4/D5）：认领/接管时取消标志检查——
+#      不执行直接收口（事件幂等补落）；心跳发现队列取消标志 → 抢占式
+#      取消 runner（协作式检查器互补，取消时延上界 = 心跳间隔）；
+#      CancelledError 内外部分流——内部（标志驱动）吞掉走正常收口
+#      （flush → complete），外部维持 re-raise（M2 语义零变化）。
 # =============================================================================
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
 import socket
 import time
 import uuid
-from typing import Any, Dict, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set
 
 from orchestration_platform.application.execution_runner import (
     InstanceRegistry,
@@ -62,12 +68,15 @@ class PersistingInstanceRegistry(InstanceRegistry):
     """
 
     # 注册表事件类型（UPPERCASE 字符串）→ EventType 枚举持久化载体；
-    # INSTANCE_CANCELLED 不映射：worker 模式不触发取消端点（M2 边界）
+    # M3：INSTANCE_CANCELLED 入映射——running 作业取消时 runner
+    # CancelledError 分支的取消事件持久化（读穿透 GET/SSE 可见性）；
+    # 盲区 pending 取消事件由 API 端点侧落账（design D5），不流经此处
     _INSTANCE_EVENT_MAP: Dict[str, EventType] = {
         "INSTANCE_STARTED": EventType.INSTANCE_STARTED,
         "INSTANCE_COMPLETED": EventType.INSTANCE_COMPLETED,
         "INSTANCE_FAILED": EventType.INSTANCE_FAILED,
         "INSTANCE_SUSPENDED": EventType.INSTANCE_SUSPENDED,
+        "INSTANCE_CANCELLED": EventType.INSTANCE_CANCELLED,
     }
     # NODE_COMPLETED（注册表口径）与 NODE_SUCCEEDED（领域枚举口径）同义，
     # 读穿透侧反映射还原注册表形态（design D1）
@@ -161,12 +170,18 @@ async def run_claimed_job(
     executor_registry,
     checkpoint_repository=None,
     workflow_repository=None,
+    cancellation_checker: Optional[Callable[[], bool]] = None,
 ) -> bool:
     """执行单个认领作业：重建上下文 → run_and_record。
 
     返回 True = 运行完成（工作流任意结局均算作业完成——succeeded/failed/
     waiting_review 由 run_and_record 落注册表与事件仓储）；抛出异常 =
     重建/执行链基础设施失败（调用方按 queue.fail 流转）。
+
+    cancellation_checker（M3 P5，design D2 协作式兜底）：由 worker 注入
+    （心跳发现取消标志置位的事件）；scheduler 于节点边界轮询，True 即
+    CancelledError 终止（与抢占式 runner_task.cancel 主路径互补）；
+    缺省 None 零行为（既有调用点零改动）。
     """
     from orchestration_platform.workflow.yaml_workflow_parser import (
         YamlWorkflowParser,
@@ -228,11 +243,13 @@ async def run_claimed_job(
                 job.instance_id
             )
 
-    # 4. 调度器（worker 侧与 API start_instance 同构装配）
+    # 4. 调度器（worker 侧与 API start_instance 同构装配；M3 协作式
+    #    取消检查器注入——design D2）
     scheduler = Scheduler(
         executor_registry=executor_registry,
         checkpoint_repository=checkpoint_repository,
         event_callback=NodeEventCallbackImpl(registry),
+        cancellation_checker=cancellation_checker,
     )
 
     # 5. 执行并记录（run_and_record 内部处理 succeeded/failed/waiting_review）
@@ -303,6 +320,11 @@ class ExecutionWorker:
         )
         self._stop_requested = False
         self._grace_deadline: Optional[float] = None
+        # M3 内部取消记账（design D4 内外部分流）：心跳发现标志取消
+        # runner 前登记 job_id——process_job 的 CancelledError 分支据此
+        # 吞掉内部取消走正常收口；未登记的 CancelledError = 外部取消，
+        # 维持 re-raise（M2 语义）
+        self._internal_cancel_jobs: Set[str] = set()
 
     @property
     def worker_id(self) -> str:
@@ -358,15 +380,45 @@ class ExecutionWorker:
         logger.info("worker 停机完成: worker_id=%s", self._worker_id)
 
     async def process_job(self, job: ExecutionJob) -> None:
-        """处理单个作业：心跳 + 执行 + 持久化收口 + 终态流转。"""
-        heartbeat_task = asyncio.create_task(self._heartbeat_loop(job))
+        """处理单个作业：心跳 + 执行 + 持久化收口 + 终态流转。
+
+        M3（design D4/D5）：
+        - 认领/接管时发现取消标志 → 不执行直接收口（盲区取消事件已由
+          API 端点侧落账；接管场景端点未落账则查重补落）；
+        - 心跳发现取消标志 → 抢占式取消 runner（协作式检查器互补）；
+          CancelledError 按内外部分流：内部（标志驱动）吞掉走正常收口
+          （flush → complete；run_and_record 已落 cancelled 终态与事件），
+          外部维持 re-raise（M2 语义零变化）。
+        """
+        if job.cancel_requested:
+            await self._finalize_cancelled_job(job)
+            return
+        cancel_event = asyncio.Event()
+        runner_task = asyncio.create_task(self._run_job(job, cancel_event))
+        heartbeat_task = asyncio.create_task(
+            self._heartbeat_loop(job, runner_task, cancel_event)
+        )
         ok = False
         reason = ""
         try:
-            ok = await self._run_job(job)
+            ok = await runner_task
         except asyncio.CancelledError:
-            heartbeat_task.cancel()
-            raise
+            if job.job_id in self._internal_cancel_jobs:
+                # 内部取消（design D4）：吞掉走正常收口——
+                # run_and_record 已置 cancelled 终态 + 事件，作业 complete
+                logger.info(
+                    "内部取消完成（标志驱动，正常收口）: job_id=%s, "
+                    "instance_id=%s",
+                    job.job_id,
+                    job.instance_id,
+                )
+                ok = True
+            else:
+                heartbeat_task.cancel()
+                runner_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await runner_task
+                raise
         except Exception as exc:
             ok = False
             reason = f"{type(exc).__name__}: {exc}"
@@ -379,6 +431,7 @@ class ExecutionWorker:
             )
         finally:
             heartbeat_task.cancel()
+            self._internal_cancel_jobs.discard(job.job_id)
         try:
             await heartbeat_task
         except asyncio.CancelledError:
@@ -418,8 +471,66 @@ class ExecutionWorker:
                     reason,
                 )
 
-    async def _run_job(self, job: ExecutionJob) -> bool:
-        """执行作业：惰性构造执行器注册表/检查点仓储/持久化注册表。"""
+    async def _finalize_cancelled_job(self, job: ExecutionJob) -> None:
+        """认领/接管时发现取消标志：不执行直接收口（design D5）。
+
+        事件幂等补落：盲区（pending）取消事件已由 API 端点侧落账——查重
+        跳过；接管场景（原 worker 亡于标志消费前，端点未落账）→ 补落
+        INSTANCE_CANCELLED（读穿透可见性）。
+        """
+        event_written = await self._ensure_cancelled_event(job)
+        completed = await self._queue.complete(job.job_id, self._worker_id)
+        if completed:
+            logger.info(
+                "取消作业直接收口（不执行）: job_id=%s, instance_id=%s, "
+                "event_written=%s",
+                job.job_id,
+                job.instance_id,
+                event_written,
+            )
+        else:
+            logger.warning(
+                "取消作业收口流转失败（租约易主或已终态）: job_id=%s",
+                job.job_id,
+            )
+
+    async def _ensure_cancelled_event(self, job: ExecutionJob) -> bool:
+        """补落 INSTANCE_CANCELLED 事件（幂等：查到已有即不写）。"""
+        repo = self._event_repository
+        if repo is None:
+            return False
+        try:
+            events = await repo.list_for_instance(job.instance_id)
+            for event in events:
+                if event.event_type == EventType.INSTANCE_CANCELLED:
+                    return True  # 端点侧盲区取消已落账（不双写）
+            await repo.append(
+                ExecutionEvent(
+                    event_id=str(uuid.uuid4()),
+                    instance_id=job.instance_id,
+                    event_type=EventType.INSTANCE_CANCELLED,
+                    node_id=None,
+                    sequence=0,
+                    payload={"definition_id": job.definition_id},
+                )
+            )
+            return True
+        except Exception:
+            logger.warning(
+                "取消事件补落失败（读穿透将缺失该事件）: job_id=%s",
+                job.job_id,
+                exc_info=True,
+            )
+            return False
+
+    async def _run_job(
+        self, job: ExecutionJob, cancel_event: Optional[asyncio.Event] = None
+    ) -> bool:
+        """执行作业：惰性构造执行器注册表/检查点仓储/持久化注册表。
+
+        cancel_event（M3 design D2）：协作式取消信号——心跳发现队列取消
+        标志后置位，经 run_claimed_job 注入 scheduler 节点边界检查器。
+        """
         if self._executor_registry is None:
             self._executor_registry = _build_executor_registry()
         if self._checkpoint_repository is None:
@@ -451,10 +562,23 @@ class ExecutionWorker:
             executor_registry=self._executor_registry,
             checkpoint_repository=self._checkpoint_repository,
             workflow_repository=self._workflow_repository,
+            cancellation_checker=(
+                cancel_event.is_set if cancel_event is not None else None
+            ),
         )
 
-    async def _heartbeat_loop(self, job: ExecutionJob) -> None:
-        """心跳续租：停机宽限超时停止续租（租约到期由接管兜底，design D4）。"""
+    async def _heartbeat_loop(
+        self,
+        job: ExecutionJob,
+        runner_task: asyncio.Task,
+        cancel_event: asyncio.Event,
+    ) -> None:
+        """心跳续租 + 取消标志发现（M3 design D2/D4）。
+
+        停机宽限超时停止续租（租约到期由接管兜底，design D4）；每拍
+        重读作业行——发现取消标志：登记内部取消 → 置协作式信号 →
+        抢占式取消 runner（取消时延上界 = 心跳间隔）。
+        """
         while True:
             await asyncio.sleep(self._heartbeat_seconds)
             if (
@@ -466,6 +590,19 @@ class ExecutionWorker:
                     "优雅停机宽限超时，停止续租（租约到期待接管）: job_id=%s",
                     job.job_id,
                 )
+                return
+            # M3 取消标志发现（先于续租——取消优先）
+            current = await self._queue.get(job.job_id)
+            if current is not None and current.cancel_requested:
+                logger.info(
+                    "心跳发现取消请求，取消执行: job_id=%s, instance_id=%s",
+                    job.job_id,
+                    job.instance_id,
+                )
+                self._internal_cancel_jobs.add(job.job_id)
+                cancel_event.set()  # 协作式兜底（design D2）
+                if not runner_task.done():
+                    runner_task.cancel()  # 抢占式主路径
                 return
             renewed = await self._queue.heartbeat(
                 job.job_id, self._worker_id

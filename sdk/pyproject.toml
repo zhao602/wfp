@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wfp-sdk"
-version = "0.2.0"
+version = "0.3.0"
 description = "工作流编排平台嵌入 SDK —— 提交/触发/订阅/取消/取结果 同步客户端"
 readme = "README.md"
 license = {text = "Apache-2.0"}

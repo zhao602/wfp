@@ -77,3 +77,21 @@ class IExecutionQueue(Protocol):
     async def get(self, job_id: str) -> Optional[ExecutionJob]:
         """按标识查询作业；不存在返回 None（提交幂等核对/运维巡检用）。"""
         ...
+
+    async def request_cancel(self, job_id: str) -> bool:
+        """置位作业取消请求标志（M3 P5：cancel_requested=True，幂等）。
+
+        任意状态可置位（终态置位为无害幂等）；作业不存在返回 False。
+        worker 心跳轮询发现标志后取消执行（取消时延上界 = 心跳间隔）；
+        认领后执行前发现的标志使 worker 不执行直接完成（design D5）。
+        """
+        ...
+
+    async def find_active_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例标识查找唯一活跃（pending/running）作业（cancel 端点定位用）。
+
+        无活跃作业返回 None（终态作业不返回——取消语义仅针对在途执行）。
+        """
+        ...

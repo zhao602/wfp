@@ -294,3 +294,27 @@ class LocalFileExecutionQueue:
     async def get(self, job_id: str) -> Optional[ExecutionJob]:
         """按标识查询作业；不存在返回 None。"""
         return self._load_job(job_id)
+
+    async def request_cancel(self, job_id: str) -> bool:
+        """置位取消请求标志（幂等；design D1——worker 心跳轮询发现后取消）。"""
+        job = self._load_job(job_id)
+        if job is None:
+            return False
+        if not job.cancel_requested:
+            job.cancel_requested = True
+            self._save_job(job)
+        return True
+
+    async def find_active_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例查找活跃（pending/running）作业，最早入队者优先。"""
+        active = [
+            job
+            for job in self._list_jobs()
+            if job.instance_id == instance_id and not job.is_terminal()
+        ]
+        if not active:
+            return None
+        active.sort(key=lambda j: (j.created_at, j.job_id))
+        return active[0]

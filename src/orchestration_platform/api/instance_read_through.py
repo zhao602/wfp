@@ -17,6 +17,7 @@
 # =============================================================================
 
 import logging
+import uuid
 from typing import Any, Dict, List, Optional, Protocol
 
 from fastapi import HTTPException
@@ -97,10 +98,12 @@ _REVERSE_TYPE_MAP: Dict[EventType, str] = {
     EventType.NODE_SUCCEEDED: "NODE_COMPLETED",
 }
 
-# 实例级终态事件（SSE 收尾判定；waiting_review 非终态——流保持开启等待恢复）
+# 实例级终态事件（SSE 收尾判定；waiting_review 非终态——流保持开启等待恢复；
+# M3：INSTANCE_CANCELLED 入终态集合——盲区取消事件即收尾帧）
 _REPO_TERMINAL_TYPES = (
     EventType.INSTANCE_COMPLETED,
     EventType.INSTANCE_FAILED,
+    EventType.INSTANCE_CANCELLED,
 )
 
 
@@ -187,8 +190,10 @@ async def read_instance_snapshot(
 
     无事件返回 None（调用方维持 404）；状态推导按实例级事件类型
     （INSTANCE_STARTED→running / COMPLETED→succeeded / FAILED→failed /
-    SUSPENDED→waiting_review），不依赖 payload（PG 读侧既有丢失，design D2）；
-    definition_id 取 INSTANCE_STARTED 载荷富化值（local_file 后端可靠）。
+    SUSPENDED→waiting_review / CANCELLED→cancelled，M3 design D5——盲区
+    取消事件使 GET 立即可见终态），不依赖 payload（PG 读侧既有丢失，
+    design D2）；definition_id 取 INSTANCE_STARTED/CANCELLED 载荷富化值
+    （local_file 后端可靠）。
     """
     repo = event_repository if event_repository is not None else _get_event_repository()
     if repo is None:
@@ -234,6 +239,20 @@ async def read_instance_snapshot(
                 if event.occurred_at is not None
                 else None
             )
+        elif event.event_type == EventType.INSTANCE_CANCELLED:
+            # M3 盲区取消（design D5）：pending 作业取消事件先于
+            # INSTANCE_STARTED 存在（worker 未认领），definition_id 取
+            # 本事件载荷（cancel 端点富化 job.definition_id）
+            status = "cancelled"
+            finished_at = (
+                event.occurred_at.isoformat()
+                if event.occurred_at is not None
+                else None
+            )
+            if not definition_id:
+                definition_id = str(
+                    (event.payload or {}).get("definition_id", "") or ""
+                )
         elif event.event_type == EventType.INSTANCE_SUSPENDED:
             status = "waiting_review"
     result: Dict[str, Any] = {
@@ -245,3 +264,39 @@ async def read_instance_snapshot(
     if finished_at is not None:
         result["finished_at"] = finished_at
     return result
+
+
+async def record_instance_cancelled_event(
+    instance_id: str, *, definition_id: Optional[str] = None
+) -> bool:
+    """端点侧落 INSTANCE_CANCELLED 事件（M3 盲区可见性，design D5）。
+
+    pending 作业取消（worker 未认领、事件仓储无该实例事件）时由 cancel
+    端点调用：GET /instances/{id} 与 SSE 经事件仓储立即可见 cancelled
+    终态（worker 认领时标志检查后不执行直接收口，不再补事件——避免双写）。
+    仓储不可达或落账失败返回 False（可见性降级仅告警，取消响应契约不变）。
+    """
+    repo = _get_event_repository()
+    if repo is None:
+        logger.warning(
+            "盲区取消事件落账跳过（事件仓储不可达）: instance_id=%s",
+            instance_id,
+        )
+        return False
+    try:
+        await repo.append(
+            ExecutionEvent(
+                event_id=str(uuid.uuid4()),
+                instance_id=instance_id,
+                event_type=EventType.INSTANCE_CANCELLED,
+                node_id=None,
+                sequence=0,
+                payload={"definition_id": definition_id or ""},
+            )
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "盲区取消事件落账失败: instance_id=%s", instance_id, exc_info=True
+        )
+        return False

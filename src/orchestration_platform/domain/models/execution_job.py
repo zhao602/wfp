@@ -78,6 +78,10 @@ class ExecutionJob(BaseModel):
     last_error: Optional[str] = Field(
         default=None, description="最近一次失败原因（fail 时落值）"
     )
+    cancel_requested: bool = Field(
+        default=False,
+        description="取消请求标志（M3 P5：API cancel 置位，worker 心跳轮询发现后取消执行；幂等置位）",
+    )
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="入队时刻（ISO8601）",

@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     loop_max_iterations: int = Field(default=10, description="循环最大迭代次数（防死循环）")
     checkpoint_interval_seconds: int = Field(default=30, description="长耗时节点中间检查点间隔（秒）")
     review_timeout_seconds: int = Field(default=3600, description="人工审核超时（秒）")
-    instance_timeout_seconds: int = Field(default=1800, description="实例级超时（秒）")
+    instance_timeout_seconds: float = Field(default=1800, description="实例级超时（秒）；M3 看门狗接线（design D3），None 值经环境变量不可达——恒有上界")
     instance_max_concurrency: int = Field(default=20, description="实例最大并发数")
 
     # ---------------- 执行模式与队列（roadmap-v3 中期窗口 M1，F1 执行队列与提交路径统一） ----------------

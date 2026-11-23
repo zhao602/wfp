@@ -160,15 +160,49 @@ worker 服务空转（认领不到作业），历史行为不变。
 - **诚实口径**：本语义为 at-least-once（接管重放单节点可能重复执行一次），
   非 exactly-once；业务节点需自带幂等。
 
-### 10.3 读穿透与 M2 已知边界
+### 10.3 读穿透与 M3 已知边界
 
 worker 模式实例不在 api 进程内存注册表，api 侧按以下口径回读：
 
 | 能力 | 口径 |
 | --- | --- |
 | `GET /instances/{id}`、SSE `/events/stream` | 注册表未命中 → 事件仓储回读（worker 双写落账）；实例自 worker 认领写首事件起可见（提交→认领窗口内 404，轮询间隔默认 1s） |
-| `/results`、`/events` 列表、`/cancel`、`/recover` | 注册表口径，worker 模式实例未注册 → 404（M2 边界，M3+ 按需适配） |
+| `/cancel` | **M3 已支持 worker 模式**（读穿透三态，见 10.4） |
+| `/results`、`/events` 列表、`/recover`、`/review` | 注册表口径，worker 模式实例未注册 → 404（M3 边界，欠账登记 M4+ 适配） |
 
 postgres 后端事件读侧 payload 既有丢失（`_row_to_event`），状态推导依赖
 event_type 枚举不受影响；快照 `definition_id` 字段在 postgres 后端可能为空串
 （local_file 后端完整）。
+
+### 10.4 实例取消与超时语义（M3）
+
+**取消（`POST /instances/{id}/cancel`）**：
+
+- in_process 模式：注册表内取消（M1 语义不变）。
+- worker 模式：读穿透三态——
+  1. **活跃作业存在**（pending/running）：置 `cancel_requested` 标志；
+     running 时取消时延上界 = 心跳间隔（默认 10s，
+     `EXECUTION_QUEUE_HEARTBEAT_SECONDS`），worker 心跳发现标志 →
+     抢占式取消执行 + 协作式节点边界检查兜底；pending 时认领即收口
+     不执行。
+  2. **已终态/waiting_review**：事件可见 → 409 `INSTANCE_CANCEL_CONFLICT`；
+     不可见 → 404。
+  3. **盲区可见性**：pending 取消在 api 侧落 `INSTANCE_CANCELLED` 事件
+     （GET/SSE 立即可见）；running 取消由 worker 落事件；认领/接管时
+     若发现标志但端点未落账，幂等补落（查重后写）。
+- 取消终态为 `cancelled`，作业照常 complete（不留僵尸 running）。
+
+**实例级看门狗**：
+
+- `INSTANCE_TIMEOUT_SECONDS`（默认 1800，支持小数秒）——实例执行墙钟
+  上界，in_process/worker 两模式同点生效；超时终态 **failed**（非
+  cancelled）+ 失败码 `WF_INSTANCE_TIMEOUT`（载荷含 `timeout_seconds`），
+  作业照常 complete。
+
+**租约调整注意事项（D9 已知项）**：
+
+- 队列 `heartbeat()` 续租时长取 `EXECUTION_QUEUE_LEASE_SECONDS` 环境默认，
+  不接收 worker 构造参数——**生产调整租约请统一用
+  `EXECUTION_QUEUE_LEASE_SECONDS` 环境变量**（claim/take_over/heartbeat
+  全链一致）；只调 worker 构造参数会被心跳续租覆盖回默认值，导致接管
+  时延不符预期。

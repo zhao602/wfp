@@ -61,6 +61,7 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
             ),
             attempts=row["attempts"],
             last_error=row["last_error"],
+            cancel_requested=bool(row["cancel_requested"]),
             created_at=(
                 row["created_at"].isoformat()
                 if row["created_at"] is not None
@@ -231,5 +232,36 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
             row = await conn.fetchrow(
                 "SELECT * FROM execution_job WHERE job_id = $1",
                 job_id,
+            )
+            return self._row_to_job(row) if row is not None else None
+
+    async def request_cancel(self, job_id: str) -> bool:
+        """置位取消请求标志（幂等；design D1——worker 心跳轮询发现后取消）。"""
+        async with self._admin_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE execution_job
+                SET cancel_requested = TRUE
+                WHERE job_id = $1
+                RETURNING job_id
+                """,
+                job_id,
+            )
+            return row is not None
+
+    async def find_active_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例查找活跃（pending/running）作业，最早入队者优先。"""
+        async with self._admin_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM execution_job
+                WHERE instance_id = $1
+                  AND status IN ('pending', 'running')
+                ORDER BY created_at, job_id
+                LIMIT 1
+                """,
+                instance_id,
             )
             return self._row_to_job(row) if row is not None else None

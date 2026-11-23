@@ -83,8 +83,8 @@ S2(SSO 闭环, 5–8 或 0.5 人日) —— 可插小批，建议 B15 前
 - **范围决策（批内 spec 定稿）**：worker 形态（先同进程独立 task group，独立进程为二阶段）；接管心跳窗口与租约；幂等键（instance_id 唯一约束防双跑）；执行状态表 schema。
 - **出口验收**：`kill -9` worker → 在途实例被接管续跑（drill 脚本 + 记录留档）；两副本并发不重复执行；cancel 后并行分支全部终止、无僵尸节点（B2 409 竞态先例入回归）；全量 pytest 精确闭合 exit 0；四基准重跑 p95 漂移 ≤5%（linear_50 含 local_file 检查点 O(n²) 主导项——复测口径换 postgres 后端在 spec 定）。
 - **风险**：调度语义回归面全项目最大——缓解为拆两子窗口（①状态落库 + 提交/执行分离 ②心跳接管 + kill -9 + 幂等），每窗口独立全量门禁；drill 脚本先于重构落盘。
-- **进度（2026-11-23）**：M1 收口（`d2058a6`：执行队列抽象 + local_file/postgres 双后端 + 租约/心跳/接管语义 + v1_8 迁移 + 统一提交路径）；M2 由并行会话以 `roadmap_m2_worker_process` 档执行中（**独立 worker 进程**形态：`python -m orchestration_platform.worker` + compose `worker:` 服务 + 状态/事件读穿透 + EventType +4 + start_instance 透传 yaml_text + 优雅停机；其 kill -9 验证为模拟死亡集成测试）。
-- **M3 小批输入（2026-11-23 登记）**：P5 cancel 语义（原计划）+ 并行 M2 移交/差异项——①真实 `kill -9` 进程 drill（非模拟）；②两副本认领并发 drill（M2 spec 非目标明确移交）；③四基准重跑 p95 ±5% + e2e 5 路径 + vitest/typecheck 全门禁（M2 T9 仅列 pytest + compose config）；④`recover`/`re_execute`/`review`/`cron` 四处调用点 yaml_text 载荷补齐（M2 仅 start_instance 透传，其余端点 worker 模式不完整）。
+- **进度（2026-11-23）**：M1 收口（`d2058a6`：执行队列抽象 + local_file/postgres 双后端 + 租约/心跳/接管语义 + v1_8 迁移 + 统一提交路径）；M2 收口（`4ff5597`：独立 worker 进程形态——`python -m orchestration_platform.worker` + compose `worker:` 服务 + 状态/事件读穿透 + EventType +4 + start_instance 透传 yaml_text + 优雅停机；kill -9 验证为模拟死亡集成测试，真实 drill 移交 M3 已补）；**M3 收口（0.3.0，见 `roadmap_m3_cancel_semantics` exit-record：P5 实例级取消与超时全链 + 双真实 drill（taskkill /F 强杀接管 6/6、两副本认领互斥 4/4）+ PG 接管原子性测试锁定 + cron 版本钉 + 全门禁（pytest 3584+3 / vitest 1007+13 / typecheck 13 / e2e 6/6 / 四基准 M3 vs M2 A/B 零回归——当日绝对值因机器内存状态漂移 +20~37%，A/B 证据在档）；D9 发现：heartbeat 续租无 TTL 参走 settings 默认，短租约部署需 env 全链对齐（欠账 M4+））**。
+- **M3 小批输入（2026-11-23 登记）**：P5 cancel 语义（原计划）+ 并行 M2 移交/差异项——①真实 `kill -9` 进程 drill（非模拟）；②两副本认领并发 drill（M2 spec 非目标明确移交）；③四基准重跑 p95 ±5% + e2e 5 路径 + vitest/typecheck 全门禁（M2 T9 仅列 pytest + compose config）；④`recover`/`re_execute`/`review`/`cron` 四处调用点 yaml_text 载荷补齐（M2 仅 start_instance 透传，其余端点 worker 模式不完整）。**四项均已随 M3 收口处理（①②=双 drill；③=全门禁 A/B；④=cron 版本钉 + 其余端点欠账 M4+）**。
 
 ### B10 引擎解耦批（A1）— 10–12 人日，1 迭代
 
