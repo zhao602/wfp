@@ -44,20 +44,19 @@
 
 守护测试：`test_na_examples_out_of_subset`（矩阵测试内 4 套 N/A 范例，硬边界 3 例运行期拒绝断言）、`tests/unit/test_langgraph_isolation.py`（业务代码禁止 `import langgraph`）。
 
-## 4. SSO 企业身份：experimental 标注核对（roadmap S2 前期口径）
+## 4. SSO 企业身份：断言验签落地核对（roadmap S2 收口）
 
-**S2 二选一**（[roadmap-v3](roadmap-v3-2026-11.md) S2）：实现断言验签＋重放防护（5–8 人日），或从对外能力表移除并标 experimental（0.5 人日）。最终裁决归 S2 批（[长期执行方案](roadmap-v3-longterm-execution-2026-11.md) §4/§9.3，可插小批）。
+**S2 二选一**（[roadmap-v3](roadmap-v3-2026-11.md) S2）裁决结果：**实现断言验签＋重放防护**（[长期执行方案](roadmap-v3-longterm-execution-2026-11.md) §9 P3-②）。收口核对（2026-11-23）：
 
-**当前前期口径 = 降级声明（experimental 标注）**。B8e 核对结果（2026-11-23）：
-
-| 标注面 | 状态 | 事实 |
+| 面向 | 状态 | 事实 |
 |---|---|---|
-| README（能力表） | 已标 ✓ | 「SSO 企业身份为 **experimental**（roadmap S2）」 |
-| `docs/sso_integration_guide.md` | 本批补齐 | 顶部 experimental 声明（此前缺失） |
-| 代码注释 | 如实 ✓ | `saml_adapter.py` / `oidc_adapter.py` 标注「简化实现：实际应使用 xmlsec / PyJWT 验签」——断言验签未实现（S2 风险描述成立） |
-| 防重放 | 骨架在位 | `replay_guard.py`：断言 ID SHA-256 摘要一次性缓存，重复断言抛 `SSO_REPLAY_DETECTED`（TTL 对齐断言时效；缓存后端不可用降级进程内） |
+| SAML 验签 | 落地 ✓ | `saml_adapter.py`：base64→XML→状态码→xmlsec 验签（响应级/断言级至少一处，含 Reference 摘要）→包裹加固（断言级 Reference URI 必须命中断言 ID）→受众/时效（`NotOnOrAfter` 必填，±60s 时钟偏移）→NameID/属性提取；断言标识服务端提取 |
+| OIDC 验签 | 落地 ✓ | `oidc_adapter.py`：`id_token`/授权码双源；PyJWT 验签（签名/受众/`exp` 必填/签发者）；算法白名单与凭据类型绑定（对称 secret→HS256，证书/公钥 PEM→RS256/RS512/ES256/ES512），拒绝算法混淆 |
+| 防重放 | 落地 ✓ | `replay_guard.py`：断言 ID SHA-256 摘要一次性缓存，重复断言抛 `SSO_REPLAY_DETECTED`；断言标识改由服务端从已验签断言提取（原客户端可伪造缺口关闭） |
+| 依赖形态 | `[sso]` profile | `xmlsec>=1.3` / `PyJWT>=2.8` / `lxml>=4.9`（`pyproject.toml` optional-dependencies），惰性导入，缺失时 `is_available()` 显式降级 |
+| 验证 | 27 例 | `tests/phase4/test_sso_verification.py`：正路径往返 + 篡改/错证书/无签名/错受众/过期/未生效/缺时效/包裹攻击/算法混淆/错密钥/重放全拒 |
 
-企业 SSO 接入前须完成 S2 裁决；在此之前 SSO 面向外部仅以 experimental 口径出现。
+SSO 对外不再带实验性标注；README 能力表与 `docs/sso_integration_guide.md` 已同步更新。已知边界：多副本共享防重放缓存（当前进程内）登记为移交项，见 S2 出口记录。
 
 ## 5. 相关文档
 

@@ -166,8 +166,9 @@ def _event() -> DomainEvent:
 
 class TestCanonicalBody:
     def test_deterministic_serialization(self):
-        body = canonical_event_body(_event())
-        assert body == canonical_event_body(_event()), "同事件确定性序列化"
+        event = _event()
+        body = canonical_event_body(event)
+        assert body == canonical_event_body(event), "同事件确定性序列化"
         assert '"event_type":"instance.succeeded"' in body.replace(", ", ","), (
             "sort_keys + 紧凑分隔符口径"
         )

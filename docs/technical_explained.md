@@ -320,7 +320,7 @@
 | **cache/** | 分布式缓存（Redis 降级内存）、分布式锁、限流计数器 | cache_manager / redis_cache_backend / in_memory_cache_backend |
 | **event_bus/** | 分布式事件总线（Kafka 降级内存）、事件重放恢复、序列号重排序 | event_bus_manager / kafka_event_bus / in_memory_event_bus / event_replay_service |
 | **scheduler/** | 全局调度器、优先级队列、优先级抢占器、公平/纯优先级调度策略 | global_scheduler / priority_queue / preemptor |
-| **sso/** | SAML 2.0/OIDC 协议适配、IdP 配置管理、防重放、JIT 开通、AES-GCM 凭据加密 | sso_service / oidc_adapter / saml_adapter / replay_guard / credential_cipher |
+| **sso/** | SAML 2.0/OIDC 断言验签（xmlsec/PyJWT）、IdP 配置管理、防重放、JIT 开通、AES-GCM 凭据加密 | sso_service / oidc_adapter / saml_adapter / replay_guard / credential_cipher |
 | **evaluation/** | Agent 效能评估框架：CLEAR 四维评分、轨迹评分、基线管理、回归报告 | evaluation_runner / clear_scorer / llm_trajectory_scorer / baseline_store / regression_reporter |
 | **nl_orchestration/** | 自然语言编排：注入防护→意图解析→YAML 生成→拓扑校验，支持 LLM 自纠错循环 | nl_orchestration_service / nl_intent_parser / yaml_generator / injection_guard |
 | **agent_discovery/** | 语义索引 Agent 发现：关键词倒排索引 + 可选向量索引 + RRF 混合检索 | discovery_service / hybrid_retriever / keyword_index / vector_index |

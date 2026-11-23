@@ -44,11 +44,22 @@ postgres = [
     "asyncpg>=0.29",
 ]
 
+# SSO profile 依赖：SAML/OIDC 断言验签（roadmap S2）运行时惰性导入
+# （xmlsec 需系统级 libxmlsec1/gcrypt 运行库；PyJWT/lxml 为常规轮子）
+sso = [
+    "xmlsec>=1.3",
+    "PyJWT>=2.8",
+    "lxml>=4.9",
+]
+
 # 测试依赖：单元/集成/契约/性能测试所需
 test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
+    "xmlsec>=1.3",
+    "PyJWT>=2.8",
+    "lxml>=4.9",
 ]
 
 # wfp 命令行入口（arch_review_v2 5.1，CHG-17；GK-09：依赖段零改动，仅追加本段）

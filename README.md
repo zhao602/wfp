@@ -44,7 +44,7 @@ with WorkflowClient("http://127.0.0.1:8310") as client:
 | --- | --- | --- |
 | **编排** | YAML 声明式定义（spec_version v1.0/1.1 兼容解析 + 拓扑校验，[1.x 只增不删承诺](docs/spec-versioning.md)）、画布双向编辑、14 类节点、自然语言编排、范例库（12 套 / 16 个 YAML） | `web/src/canvas/`、`src/orchestration_platform/workflow/`、`examples/` |
 | **执行** | 图状态机引擎：**单游标确定性调度 + 并行扇出区域**（`wait_all / wait_any / n_of_m` + 失败游标恢复，范例 [examples/parallel_execution/parallel_fanout.yaml](examples/parallel_execution/parallel_fanout.yaml)）、检查点恢复、回滚与重放、SSE 执行可视化、HITL 人工审批、定时/手动触发 | `src/orchestration_platform/engine/`、`web/src/execution-visualization/` |
-| **治理** | RBAC + ABAC、多租户、审计、[计量计费与用量对账](docs/metering-quota-guide.md)、治理驾驶舱、评估、墓碑标记、沙箱策略；SSO 企业身份为 **experimental**（roadmap S2） | `src/orchestration_platform/api/routers/governance/`、`web/src/governance/` |
+| **治理** | RBAC + ABAC、多租户、审计、[计量计费与用量对账](docs/metering-quota-guide.md)、治理驾驶舱、评估、墓碑标记、沙箱策略、SSO 企业身份（SAML 2.0/OIDC 断言验签落地，roadmap S2） | `src/orchestration_platform/api/routers/governance/`、`web/src/governance/` |
 | **生态** | Agent/Tool 市场、贡献与开发提交流、插件节点 SDK、企业连接器、Agent 发现、向量知识库 | `src/orchestration_platform/api/routers/`、`web/src/market/` 等 |
 
 ## 快速上手
@@ -80,7 +80,7 @@ Docker Compose 一键形态（api + postgres）见 [docs/deploy.md](docs/deploy.
 - 内置图状态机引擎为主运行时；LangGraph 为**严格子集**适配（单源 node 语义，
   `langgraph_runtime_enabled` 开关默认关闭）——13 例等价矩阵与子集外五类场景
   见 [docs/langgraph-equivalence-matrix.md](docs/langgraph-equivalence-matrix.md)。
-- resume/rollback/replay 等子集外方法级声明与 SSO experimental 核对见
+- resume/rollback/replay 等子集外方法级声明见
   [docs/dual-runtime-boundaries.md](docs/dual-runtime-boundaries.md)（B8e，A5）。
 - PostgreSQL / Redis 未配置时降级 local_file / 内存实现；postgres profile 依赖
   缺失时显式报错、不静默降级。
@@ -120,7 +120,7 @@ npx tsc --noEmit   # 类型检查（13 基线错误为已知存量，口径零�
 | [docs/repo-release.md](docs/repo-release.md) | 仓库推送与发布 runbook（remote / tag / CI） |
 | [docs/testing.md](docs/testing.md) | 测试运行说明 |
 | [docs/langgraph-equivalence-matrix.md](docs/langgraph-equivalence-matrix.md) | 双运行时等价矩阵与边界（内置引擎 × LangGraph） |
-| [docs/dual-runtime-boundaries.md](docs/dual-runtime-boundaries.md) | 双运行时边界与能力声明（子集外方法级声明 / SSO experimental 核对） |
+| [docs/dual-runtime-boundaries.md](docs/dual-runtime-boundaries.md) | 双运行时边界与能力声明（子集外方法级声明 / SSO 验签落地核对） |
 | [docs/metering-quota-guide.md](docs/metering-quota-guide.md) | 计量配额闭环（执行级记账 / 429 超配额契约 / 用量对账） |
 | [docs/architecture-review-2026-11.md](docs/architecture-review-2026-11.md) | 架构评审基线（2026-11） |
 | [docs/differentiation-strategy-2026-11.md](docs/differentiation-strategy-2026-11.md) | 差异化定位与竞争策略 |

@@ -2,7 +2,7 @@
 
 > 本文档说明 SSO 与企业身份提供方（IdP）的集成配置（SAML 2.0 / OIDC）、属性与角色映射、JIT 自动开户、降级行为与本地登录回退。
 >
-> **experimental（roadmap S2）**：SAML/OIDC 断言验签未实现（适配器为「简化实现」，仅基本校验）；防重放骨架已在（`replay_guard.py`）。企业 SSO 接入前须完成 S2 裁决（验签落地 vs 正式降级），详见 [docs/dual-runtime-boundaries.md](dual-runtime-boundaries.md) §4。
+> **roadmap S2 已收口（2026-11-23）**：SAML/OIDC 断言验签已落地——xmlsec / PyJWT 真实验签 + 防重放三件套（验签 / 时效窗 / 断言 ID 一次性缓存）。验签语义详见本文 §9；边界核对见 [docs/dual-runtime-boundaries.md](dual-runtime-boundaries.md) §4。
 
 ## 1. 概览
 
@@ -269,3 +269,29 @@ agentctl sso validate-mapping --user user@example.com
 - 保留至少一个本地管理员账号，防止 IdP 故障时无法管理。
 - 定期审查 `unmapped` 日志，补充角色映射。
 - 回退本地登录时强制 MFA，降低凭据风险。
+
+## 9. 验签语义（roadmap S2 落地口径）
+
+### 9.1 SAML 2.0
+
+- **验签**：`xmlsec` 真实验签，响应级/断言级 XML-DSig 签名至少一处，逐处验证（含 Reference 摘要）。
+- **凭据**：IdP 验签证书 PEM（`credential_plaintext` 写入，AES-GCM 密文落盘，版本号随更新递增）。
+- **包裹加固**：断言级签名 Reference URI 必须命中断言 ID，否则拒绝（疑似包裹攻击）。
+- **时效**：`NotOnOrAfter` 必填、`NotBefore` 可选，±60 秒时钟偏移容忍。
+- **受众**：`AudienceRestriction` 必须包含配置的 SP audience。
+- **主体**：`NameID` 必填；断言 ID、用户标识、属性一律服务端从已验签断言提取（防客户端伪造）。
+
+### 9.2 OIDC
+
+- **令牌源**：`id_token` 直传或授权码经 `token_endpoint` 换取（`authorization_code` 流）。
+- **凭据**：对称 `client_secret`（仅 HS256）或证书/公钥 PEM（RS256/RS512/ES256/ES512 白名单）；算法与凭据类型不匹配即拒绝（防算法混淆）。
+- **校验**：PyJWT 验签 + `aud` 受众 + `exp` 必填 + `iss` 签发者（配置 `oidc_issuer` 时校验）。
+- **断言标识**：`jti` 优先，缺失时退化为令牌摘要。
+
+### 9.3 防重放三件套
+
+验签（拒伪造）→ 时效窗（拒过期/未生效）→ 断言 ID 一次性缓存（重复断言抛 `SSO_REPLAY_DETECTED`，TTL 对齐断言时效）。当前缓存为进程内实现；多副本共享缓存（Redis）为后续移交项。
+
+### 9.4 依赖形态
+
+`pyproject.toml` optional-dependencies `[sso]` profile：`xmlsec>=1.3` / `PyJWT>=2.8` / `lxml>=4.9`，运行时惰性导入；依赖缺失时 `is_available()` 显式降级并提示安装 profile，不静默放行。

@@ -29,6 +29,7 @@ class IdpConfiguration(BaseModel):
     auth_endpoint: str = Field(description="认证端点 URL")
     token_endpoint: str = Field(default="", description="令牌/断言端点 URL")
     audience: str = Field(description="受众（SP 标识）")
+    oidc_issuer: str = Field(default="", description="OIDC 签发者（非空时校验 id_token 的 iss 声明）")
     encrypted_credential: str = Field(default="", description="加密凭据（密文）")
     credential_version: int = Field(default=0, description="凭据版本号")
     attribute_mappings: Dict[str, str] = Field(

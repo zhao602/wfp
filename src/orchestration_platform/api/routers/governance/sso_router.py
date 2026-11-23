@@ -32,6 +32,7 @@ class IdpConfigUpsertRequest(BaseModel):
     auth_endpoint: str = Field(description="认证端点")
     token_endpoint: str = Field(default="", description="令牌端点")
     audience: str = Field(description="受众")
+    oidc_issuer: str = Field(default="", description="OIDC 签发者（非空时校验 iss 声明）")
     credential_plaintext: str = Field(default="", description="凭据明文（仅写入，不回显）")
     attribute_mappings: dict = Field(default_factory=dict, description="属性映射")
     role_mappings: dict = Field(default_factory=dict, description="角色映射")
@@ -45,6 +46,7 @@ class IdpConfigResponse(BaseModel):
     protocol_type: str = Field(description="协议类型")
     auth_endpoint: str = Field(description="认证端点")
     audience: str = Field(description="受众")
+    oidc_issuer: str = Field(default="", description="OIDC 签发者")
     encrypted_credential: str = Field(description="凭据掩码")
     credential_version: int = Field(description="凭据版本号")
     enabled: bool = Field(description="是否启用")
@@ -66,6 +68,7 @@ async def list_idps(tenant_id: str) -> List[IdpConfigResponse]:
             protocol_type=c.protocol_type.value,
             auth_endpoint=c.auth_endpoint,
             audience=c.audience,
+            oidc_issuer=c.oidc_issuer,
             encrypted_credential=c.encrypted_credential,
             credential_version=c.credential_version,
             enabled=c.enabled,
@@ -84,6 +87,7 @@ async def create_idp(request: IdpConfigUpsertRequest) -> IdpConfigResponse:
         auth_endpoint=request.auth_endpoint,
         token_endpoint=request.token_endpoint,
         audience=request.audience,
+        oidc_issuer=request.oidc_issuer,
         attribute_mappings=request.attribute_mappings,
         role_mappings=request.role_mappings,
         enabled=request.enabled,
@@ -95,6 +99,7 @@ async def create_idp(request: IdpConfigUpsertRequest) -> IdpConfigResponse:
         protocol_type=saved.protocol_type.value,
         auth_endpoint=saved.auth_endpoint,
         audience=saved.audience,
+        oidc_issuer=saved.oidc_issuer,
         encrypted_credential=saved.encrypted_credential,
         credential_version=saved.credential_version,
         enabled=saved.enabled,
