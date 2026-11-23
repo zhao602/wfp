@@ -15,8 +15,8 @@
 #   - 等价子集硬边界：并行扇出/汇聚、HITL 挂起、回滚重放、多租户运行时、
 #     子工作流嵌套（含 SUPERVISOR 动态子编排）五项显式排除（_validate_subset
 #     运行期安全网）；
-#   - resume/rollback/replay/submit_review 仍为抛错桩（真实回滚/重放走
-#     application/rollback_replay_service.py，属排除③④，不在等价子集内）；
+#   - resume/rollback/replay 为抛错桩（排除③，真实链路走内置引擎检查点与
+#     application/rollback_replay_service.py）；submit_review 为最小占位（排除②）；
 #   - 本目录同时是"业务代码禁止 import langgraph"隔离格局的物理锚点
 #     （守护测试：tests/unit/test_langgraph_isolation.py）。
 # =============================================================================

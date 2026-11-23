@@ -2,7 +2,7 @@
 
 > 四基准本机基线（线性 50 节点 / 并行 8 分支 / 10 万行管道 / SSE 1000 事件），
 > 2026-11-22 实测。原始 JSON 存 `.codeartsdoer/specs/roadmap_b8c_perf_baseline/results/`。
-> 数字用于回归对照（B8e 性能对比矩阵的前置基线），不作跨机器横评。
+> 数字用于回归对照（后续跨后端复测的前置基线），不作跨机器横评。
 
 ## 1. 环境声明
 
@@ -83,7 +83,10 @@ python scripts/perf/bench_sse_1000.py --mode both --json
 - `--out FILE` 另存纯 JSON；`--keep-temp` 保留临时目录（服务日志/峰值文件）。
 - 脚本自带服务生命周期（起/停/健康检查/优雅停机），无需手工起服务。
 
-## 7. B8e 交叉引用（占位）
+## 7. 后续交叉引用
 
-B8e 批将补齐跨运行时性能对比矩阵：`local_file` 直跑 vs `postgres` vs
-`docker compose` 部署，以本页数字为 local_file 基线对照。届时在此回填链接。
+- 跨后端复测（`local_file` → `postgres`）由长期执行方案 B9 批出口验收承接
+  （[docs/roadmap-v3-longterm-execution-2026-11.md](roadmap-v3-longterm-execution-2026-11.md)：
+  四基准重跑 p95 漂移 ≤5%）——本页数字为其 local_file 基线对照。
+- 双运行时边界声明（B8e · A5）见
+  [docs/dual-runtime-boundaries.md](dual-runtime-boundaries.md)。

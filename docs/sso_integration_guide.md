@@ -1,6 +1,8 @@
 # SSO 企业身份集成指南
 
 > 本文档说明 SSO 与企业身份提供方（IdP）的集成配置（SAML 2.0 / OIDC）、属性与角色映射、JIT 自动开户、降级行为与本地登录回退。
+>
+> **experimental（roadmap S2）**：SAML/OIDC 断言验签未实现（适配器为「简化实现」，仅基本校验）；防重放骨架已在（`replay_guard.py`）。企业 SSO 接入前须完成 S2 裁决（验签落地 vs 正式降级），详见 [docs/dual-runtime-boundaries.md](dual-runtime-boundaries.md) §4。
 
 ## 1. 概览
 

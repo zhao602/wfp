@@ -80,6 +80,8 @@ Docker Compose 一键形态（api + postgres）见 [docs/deploy.md](docs/deploy.
 - 内置图状态机引擎为主运行时；LangGraph 为**严格子集**适配（单源 node 语义，
   `langgraph_runtime_enabled` 开关默认关闭）——13 例等价矩阵与子集外五类场景
   见 [docs/langgraph-equivalence-matrix.md](docs/langgraph-equivalence-matrix.md)。
+- resume/rollback/replay 等子集外方法级声明与 SSO experimental 核对见
+  [docs/dual-runtime-boundaries.md](docs/dual-runtime-boundaries.md)（B8e，A5）。
 - PostgreSQL / Redis 未配置时降级 local_file / 内存实现；postgres profile 依赖
   缺失时显式报错、不静默降级。
 - 工作流定义规范版本治理（`spec_version` 1.x 只增不删三承诺）见
@@ -94,7 +96,7 @@ Docker Compose 一键形态（api + postgres）见 [docs/deploy.md](docs/deploy.
 ## 测试
 
 ```bash
-# 后端（单元 + 集成，全量 exit 0 为门禁口径；v0.2.0 实测 3468 collected）
+# 后端（单元 + 集成，全量 exit 0 为门禁口径；最近实测 3490 collected，2026-11-23）
 PYTHONPATH=src python -m pytest
 
 # 前端（逐文件运行）
@@ -118,6 +120,7 @@ npx tsc --noEmit   # 类型检查（13 基线错误为已知存量，口径零�
 | [docs/repo-release.md](docs/repo-release.md) | 仓库推送与发布 runbook（remote / tag / CI） |
 | [docs/testing.md](docs/testing.md) | 测试运行说明 |
 | [docs/langgraph-equivalence-matrix.md](docs/langgraph-equivalence-matrix.md) | 双运行时等价矩阵与边界（内置引擎 × LangGraph） |
+| [docs/dual-runtime-boundaries.md](docs/dual-runtime-boundaries.md) | 双运行时边界与能力声明（子集外方法级声明 / SSO experimental 核对） |
 | [docs/metering-quota-guide.md](docs/metering-quota-guide.md) | 计量配额闭环（执行级记账 / 429 超配额契约 / 用量对账） |
 | [docs/architecture-review-2026-11.md](docs/architecture-review-2026-11.md) | 架构评审基线（2026-11） |
 | [docs/differentiation-strategy-2026-11.md](docs/differentiation-strategy-2026-11.md) | 差异化定位与竞争策略 |

@@ -227,16 +227,16 @@ T1 独立；A5 独立；S2 独立（可随时插入）
 | 项 | 值 | 来源/口径 |
 |---|---|---|
 | 后端规模 | `src/` 511 个 `.py` / 59,514 行 | `Get-ChildItem`/逐文件计行实测 |
-| 测试与工具代码 | `tests/` 181 个 `.py`；`scripts/` 10 个 `.py`（含 B8c `scripts/perf/` 6 个） | 同上 |
+| 测试与工具代码 | `tests/` 183 个 `.py`；`scripts/` 11 个 `.py`（含 B8c `scripts/perf/` 6 个、B8e 矩阵生成器 1 个） | 同上 |
 | 前端规模 | `web/src/` 非测试 156 个 `.ts`/`.tsx` / 28,841 行；vitest 测试 123 文件；e2e `web/e2e/` 8 文件 + `web/playwright.config.ts`（B8d 新增） | 同上 |
 | API | 顶层路由文件 19 个（`routers/` 递归含 `governance/` 子目录 32 个 `.py`）/ 139 个端点 | `@router.(get\|post\|put\|delete\|patch)` 递归计数 |
 | 管理面板 | 18 项（4 组） | `web/src/admin/menuConfig.ts` |
 | 范例 | 12 套 / 16 个 YAML | `examples/` |
-| 文档 | 47 篇（含本文与并行会话已落档的长期执行方案） | `docs/*.md` |
-| 测试 | 后端 pytest **3468**（3465 passed + 3 skipped，exit 0，B8d 复测 821.55s）；前端 vitest **1007+13** / 123 文件；e2e Playwright **6 用例**（5 路径，连续 10 次全绿） | 各批出口记录 + B8d 出口记录 |
+| 文档 | 48 篇（含本文、长期执行方案与 B8e 双运行时边界篇） | `docs/*.md` |
+| 测试 | 后端 pytest **3490**（3487 passed + 3 skipped，exit 0，B8e 复测 336.33s；较 B8d 3468 +22 = B9-M1 执行队列 +21、B8e 一致性守护 +1）；前端 vitest **1007+13** / 123 文件；e2e Playwright **6 用例**（5 路径，连续 10 次全绿） | 各批出口记录 + B8e 出口记录 |
 | 工程设施 | CI（ruff + pytest + tsc + vitest + 范例校验）、`wfp-check`、Dockerfile、compose、**Playwright e2e 套件（B8d）**、性能基准脚本（B8c） | `.github/workflows/`、`web/playwright.config.ts`、`scripts/perf/` |
 | 性能基线 | linear_50 p95=21759.9ms / parallel_8 p95=15872.8ms / pipeline_100k p95=27281.2ms·峰值 247.8MB / sse_1000 p95=85.3ms | `docs/benchmark.md`（B8c 实测） |
 | 已知缺陷登记 | D1 订阅管理器全运行时未装配（`/subscriptions` 恒 503，e2e 缺陷断言锁定）；D2 StrictMode dev 持久化坏死（B8d 已修复） | B8d exit-record §4 |
 | 缺失项 | git remote / CI 凭据（PyPI 发布同批移交）；`/metrics` 仍为 JSON | 实测 |
 
-> 说明：B7/B8a/B8b/B8c/B8d 已收口落 `main`（6925074 为 B8c 提交；B8d 提交哈希见其出口记录）；测试数以当次全量复测为准。短期池仅余 B8e（A5 边界成文）。
+> 说明：B7/B8a–B8e 已全部收口落 `main`（短期池清空，B8e 提交哈希见其出口记录）；B9-M1（执行队列与统一提交路径）已先行落库 `d2058a6`（2026-11-23 并行会话）；测试数以当次全量复测为准。
