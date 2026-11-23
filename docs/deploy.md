@@ -134,3 +134,41 @@ A：见 §2——先确认 bootstrap 执行记录，重跑 bootstrap，不要关
 
 **Q：想临时回退到本地开发口径？**
 A：`ENVIRONMENT=development`（仅告警不阻断）+ `TOKEN_VERIFY_MODE=both`；生产环境禁止。
+
+---
+
+## 10. Worker 拓扑与接管语义（M2，api + worker + postgres 三服务）
+
+### 10.1 拓扑
+
+`docker-compose.yml` 含三个服务：`api`（HTTP 入口）、`worker`（执行进程）、`postgres`。
+worker 与 api 同一镜像，仅 command 覆写为 `python -m orchestration_platform.worker`，
+不暴露端口。`EXECUTION_MODE=worker` 写在 `.env.production`（两服务共享）：
+api 只入队，worker 认领执行。`EXECUTION_MODE=in_process`（默认）时 api 进程内执行，
+worker 服务空转（认领不到作业），历史行为不变。
+
+### 10.2 接管语义（at-least-once，诚实口径）
+
+- **租约与心跳**：worker 认领作业即持租约（`EXECUTION_QUEUE_LEASE_SECONDS`，
+  默认 30s），执行期按 `EXECUTION_QUEUE_HEARTBEAT_SECONDS`（默认 10s）续租。
+- **kill -9 / 容器被杀**：无任何清理，租约到期后任意存活 worker 经
+  `take_over_expired` 接管；续跑点 = 该实例最新检查点（调度器逐节点写检查点），
+  **重放范围仅被杀时刻执行中的单节点**；死亡早于首个检查点时从初始输入整段重放。
+- **优雅停机（SIGTERM，滚动升级）**：停止认领，宽限期
+  （`EXECUTION_QUEUE_GRACEFUL_SHUTDOWN_SECONDS`，默认 30s）内等当前作业完成；
+  超时停止心跳续租（不取消运行中任务），租约到期由其他 worker 接管。
+- **诚实口径**：本语义为 at-least-once（接管重放单节点可能重复执行一次），
+  非 exactly-once；业务节点需自带幂等。
+
+### 10.3 读穿透与 M2 已知边界
+
+worker 模式实例不在 api 进程内存注册表，api 侧按以下口径回读：
+
+| 能力 | 口径 |
+| --- | --- |
+| `GET /instances/{id}`、SSE `/events/stream` | 注册表未命中 → 事件仓储回读（worker 双写落账）；实例自 worker 认领写首事件起可见（提交→认领窗口内 404，轮询间隔默认 1s） |
+| `/results`、`/events` 列表、`/cancel`、`/recover` | 注册表口径，worker 模式实例未注册 → 404（M2 边界，M3+ 按需适配） |
+
+postgres 后端事件读侧 payload 既有丢失（`_row_to_event`），状态推导依赖
+event_type 枚举不受影响；快照 `definition_id` 字段在 postgres 后端可能为空串
+（local_file 后端完整）。

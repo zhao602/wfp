@@ -161,6 +161,12 @@ class EventType(str, Enum):
     INSTANCE_PREEMPTED = "instance_preempted"          # 实例被抢占
     INSTANCE_RESTORED = "instance_restored"            # 实例从抢占恢复
     RESOURCE_POOL_EXHAUSTED = "resource_pool_exhausted"  # 资源池耗尽
+    # ---- M2 worker 模式实例级生命周期事件（事件仓储持久化载体，读穿透
+    #      状态推导依赖 event_type 而非 payload——PG 读侧 payload 既有丢失）----
+    INSTANCE_STARTED = "instance_started"              # 实例开始执行（worker 认领）
+    INSTANCE_COMPLETED = "instance_completed"          # 实例执行完成（终态 succeeded）
+    INSTANCE_FAILED = "instance_failed"                # 实例执行失败（终态 failed）
+    INSTANCE_SUSPENDED = "instance_suspended"          # 实例挂起（waiting_review）
 
 
 class ReplayMode(str, Enum):

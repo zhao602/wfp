@@ -65,6 +65,26 @@ services:
       retries: 10
       start_period: 30s
 
+  # 执行 worker（roadmap-v3 中期窗口 M2，F1 执行无状态化）：
+  #   同一镜像、command 覆写为 -m 入口；EXECUTION_MODE=worker 时 api 只入队、
+  #   本服务认领执行（EXECUTION_MODE 在 .env.production 全局设置，两服务共享）；
+  #   无 ports（不直接对外）；kill -9/滚动升级由租约接管兜底（docs/deploy.md §10）。
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "orchestration_platform.worker"]
+    env_file:
+      - .env.production
+    environment:
+      # compose 网络内经服务名寻址（覆盖模板中的主机名口径）
+      POSTGRES_HOST: postgres
+    volumes:
+      - api-data:/app/.data
+      - api-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   api-data:

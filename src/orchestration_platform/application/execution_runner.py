@@ -975,8 +975,14 @@ class ExecutionSubmitter:
         resume_checkpoint=None,
         trigger_source: str = "manual",
         rt: Optional[InstanceRuntime] = None,
+        yaml_text: Optional[str] = None,
     ) -> Optional[asyncio.Task]:
-        """提交执行：in_process 创建后台任务并落 rt.task；worker 入队返回 None。"""
+        """提交执行：in_process 创建后台任务并落 rt.task；worker 入队返回 None。
+
+        yaml_text（M2）：worker 模式随作业携带工作流 YAML 文本，供 worker
+        进程重解析编译；缺省时 worker 回退工作流仓储按 definition_id+version
+        取定义。in_process 路径不消费该参数（零行为变化）。
+        """
         if get_settings().execution_mode == "worker":
             queue = self._queue if self._queue is not None else build_execution_queue()
             initial_inputs = dict(
@@ -987,8 +993,8 @@ class ExecutionSubmitter:
                 instance_id=instance_id,
                 tenant_id=getattr(rt, "tenant_id", None),
                 definition_id=getattr(rt, "definition_id", "") or "",
-                definition_version=None,
-                yaml_text=None,
+                definition_version=getattr(compiled, "definition_version", None),
+                yaml_text=yaml_text,
                 initial_inputs=initial_inputs,
                 trigger_source=trigger_source,
                 trace_id=trace_id,

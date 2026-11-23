@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     execution_queue_dir: str = Field(
         default="./.data/execution_queue", description="本地文件执行队列存储目录（local_file 后端）"
     )
+    execution_queue_graceful_shutdown_seconds: int = Field(
+        default=30,
+        ge=1,
+        description="worker 优雅停机宽限（秒）：SIGTERM 后停止认领，宽限期内等当前作业完成；超时停止心跳续租，租约到期由其他 worker 接管（M2）",
+    )
 
     # ---------------- LangGraph 适配层 ----------------
     langgraph_checkpointer_mode: Literal["memory", "custom"] = Field(

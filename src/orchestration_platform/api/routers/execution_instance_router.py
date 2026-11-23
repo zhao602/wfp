@@ -27,6 +27,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from orchestration_platform.api.instance_read_through import (
+    read_instance_snapshot,
+    resolve_event_reader,
+)
 from orchestration_platform.application.execution_runner import (
     ExecutionSubmitter,
     InstanceRegistry,
@@ -110,17 +114,22 @@ bind_domain_event_publisher_source(lambda: _domain_event_publisher)
 # =============================================================================
 
 async def event_generator(instance_id: str):
-    """异步生成器：轮询注册表事件列表，以 SSE 格式推送新事件。"""
-    _instance_registry.get(instance_id)
+    """异步生成器：轮询实例事件，以 SSE 格式推送新事件。
+
+    M2 读穿透：注册表优先（in_process 语义，行为与历史逐字段等价）；
+    未命中回退事件仓储轮询（worker 模式，InstanceEventReader 双实现）。
+    """
+    reader = await resolve_event_reader(
+        instance_id, registry=_instance_registry
+    )
     index = 0
     while True:
-        events = _instance_registry.get_events(instance_id)
+        events = await reader.read_events(instance_id)
         while index < len(events):
             event = events[index]
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             index += 1
-        rt = _instance_registry._instances.get(instance_id)
-        if rt is not None and rt.status in _TERMINAL_STATUSES and index >= len(events):
+        if await reader.is_terminal(instance_id) and index >= len(events):
             yield f"data: {json.dumps({'event_type': 'STREAM_END', 'instance_id': instance_id}, ensure_ascii=False)}\n\n"
             break
         await asyncio.sleep(0.1)
@@ -249,7 +258,8 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
         )
 
         # M1 spawn 收口：统一提交器提交（in_process 默认 =
-        # create_task(run_and_record(...)) 等价路径，rt.task 由提交器落值）
+        # create_task(run_and_record(...)) 等价路径，rt.task 由提交器落值）；
+        # M2：yaml_text 随作业携带（worker 进程重解析编译；in_process 不消费）
         await _execution_submitter.submit(
             scheduler,
             compiled,
@@ -259,6 +269,7 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
             _instance_registry,
             run_log_recorder=run_log_recorder,
             rt=rt,
+            yaml_text=body.yaml_text,
         )
     except Exception as exc:
         _instance_registry.remove(instance_id)
@@ -273,8 +284,14 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
 
 @router.get("/instances/{instance_id}")
 async def get_instance(instance_id: str) -> dict:
-    """查询实例状态。"""
-    rt = _instance_registry.get(instance_id)
+    """查询实例状态（worker 模式注册表未命中回退事件仓储读穿透）。"""
+    try:
+        rt = _instance_registry.get(instance_id)
+    except HTTPException:
+        snapshot = await read_instance_snapshot(instance_id)
+        if snapshot is not None:
+            return snapshot
+        raise
     result: dict = {
         "instance_id": rt.instance_id,
         "definition_id": rt.definition_id,
@@ -294,8 +311,12 @@ async def get_instance_events(instance_id: str, include_voided: bool = True) -> 
 
 @router.get("/instances/{instance_id}/events/stream")
 async def stream_instance_events(instance_id: str):
-    """SSE 事件流：以 text/event-stream 格式实时推送执行事件。"""
-    _instance_registry.get(instance_id)
+    """SSE 事件流：以 text/event-stream 格式实时推送执行事件。
+
+    预检经读穿透解析器（未知实例快速 404 不建流；worker 模式注册表
+    未命中但事件仓储有事件 → 建流轮询）。
+    """
+    await resolve_event_reader(instance_id, registry=_instance_registry)
     return StreamingResponse(
         event_generator(instance_id),
         media_type="text/event-stream",
