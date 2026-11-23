@@ -16,7 +16,6 @@
 #      （INV-08 式适配，batch-records §P5 留痕）。
 # =============================================================================
 
-import asyncio
 import uuid
 from typing import Literal, Optional
 
@@ -239,10 +238,10 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
         NodeEventCallbackImpl,
         InstanceRuntime,
         _acquire_checkpoint_repository,
+        _execution_submitter,
         _executor_registry,
         _instance_registry,
         _publish_instance_domain_event,
-        run_and_record,
     )
     from orchestration_platform.application.replay_executor import ReplayExecutor
     from orchestration_platform.application.rollback_replay_service import (
@@ -346,20 +345,21 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
                 checkpoint_repository=checkpoint_repo,
                 event_callback=NodeEventCallbackImpl(_instance_registry),
             )
-            task = asyncio.create_task(
-                run_and_record(
-                    scheduler,
-                    compiled_graph,
-                    checkpoint.state_snapshot,
-                    next_replay_id,
-                    new_rt.trace_id,
-                    _instance_registry,
-                    resume_checkpoint=checkpoint,
-                    trigger_source="re_execute",
-                )
+            # M1 spawn 收口：统一提交器提交（in_process 默认等价路径；
+            # worker 模式入队返回 None，重放实例由 worker 认领）
+            task = await _execution_submitter.submit(
+                scheduler,
+                compiled_graph,
+                checkpoint.state_snapshot,
+                next_replay_id,
+                new_rt.trace_id,
+                _instance_registry,
+                resume_checkpoint=checkpoint,
+                trigger_source="re_execute",
+                rt=new_rt,
             )
-            new_rt.task = task
-            await task
+            if task is not None:
+                await task
             return len(new_rt.events)
 
         execution = await executor.re_execute(
@@ -412,9 +412,9 @@ async def submit_review(instance_id: str, body: ReviewBody) -> dict:
         NodeEventCallbackImpl,
         _acquire_checkpoint_repository,
         _domain_event_publisher,
+        _execution_submitter,
         _executor_registry,
         _instance_registry,
-        run_and_record,
     )
     from orchestration_platform.application.review_service import ReviewDecisionService
     from orchestration_platform.engine.scheduler import Scheduler
@@ -441,29 +441,29 @@ async def submit_review(instance_id: str, body: ReviewBody) -> dict:
     event_repo = RepositoryFactory.create_event_repository()
 
     def _resume_runner(checkpoint) -> None:
-        """approve 唤醒：重建 Scheduler + run_and_record(resume_checkpoint) 续跑。
+        """approve 唤醒：重建 Scheduler + 经统一提交器 resume 续跑。
 
         trigger_source=review_resume：续跑 instance.started（P1 变体）即唤醒信号，
         不另发 instance.resumed（拍板项 #6 合并口径，不留双发）。
+        M1 spawn 收口：同步回调场景走 submit_sync（in_process 直达
+        create_task，rt.task 同步落值，与历史逐拍等价；worker 模式入队）。
         """
         scheduler = Scheduler(
             executor_registry=_executor_registry,
             checkpoint_repository=checkpoint_repo,
             event_callback=NodeEventCallbackImpl(_instance_registry),
         )
-        task = asyncio.create_task(
-            run_and_record(
-                scheduler,
-                rt.compiled,
-                checkpoint.state_snapshot,
-                instance_id,
-                rt.trace_id or "",
-                _instance_registry,
-                resume_checkpoint=checkpoint,
-                trigger_source="review_resume",
-            )
+        _execution_submitter.submit_sync(
+            scheduler,
+            rt.compiled,
+            checkpoint.state_snapshot,
+            instance_id,
+            rt.trace_id or "",
+            _instance_registry,
+            resume_checkpoint=checkpoint,
+            trigger_source="review_resume",
+            rt=rt,
         )
-        rt.task = task
 
     service = ReviewDecisionService(
         checkpoint_repo,

@@ -51,7 +51,6 @@ def build_cron_fire_callback(
     启动失败返回 None（扫描器告警不重发——一次且仅一次）；
     局部 import 防循环依赖（execution_instance_router 亦被本模块导入）。
     """
-    import asyncio
     import logging
     import uuid
 
@@ -59,9 +58,9 @@ def build_cron_fire_callback(
         InstanceRuntime,
         NodeEventCallbackImpl,
         _acquire_checkpoint_repository,
+        _execution_submitter,
         _executor_registry,
         _instance_registry,
-        run_and_record,
     )
     from orchestration_platform.domain.models.enums import NodeType
     from orchestration_platform.domain.models.shared_state import SharedState
@@ -137,19 +136,20 @@ def build_cron_fire_callback(
             domain_event_publisher=domain_event_publisher,
         )
         initial_state = SharedState(instance_id=instance_id, node_outputs={})
-        task = asyncio.create_task(
-            run_and_record(
-                scheduler,
-                compiled,
-                initial_state,
-                instance_id,
-                trace_id,
-                _instance_registry,
-                run_log_recorder=run_log_recorder,
-                trigger_source="cron",
-            )
+        # M1 spawn 收口：统一提交器提交（in_process 默认 =
+        # create_task(run_and_record(...)) 等价路径，rt.task 由提交器落值；
+        # worker 模式入队由 worker 认领，M2 落地）
+        await _execution_submitter.submit(
+            scheduler,
+            compiled,
+            initial_state,
+            instance_id,
+            trace_id,
+            _instance_registry,
+            run_log_recorder=run_log_recorder,
+            trigger_source="cron",
+            rt=rt,
         )
-        rt.task = task
         logger.info(
             "Cron 触发启动实例：%s -> instance=%s fire_at=%s",
             schedule.schedule_id,

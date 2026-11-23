@@ -129,8 +129,11 @@ class TestSharedLlmClientConstruction:
 
     def test_llm_client_built_once_and_shared(self):
         sentinel = object()
+        # 2026-11-23 M1 守护重定向：_build_executor_registry/_build_llm_client
+        # 主体已迁 application/execution_runner.py（路由经 from-import 转发），
+        # patch 目标随代码迁移改指 runner 模块（函数内调用经模块全局解析）
         with patch(
-            "orchestration_platform.api.routers.execution_instance_router._build_llm_client",
+            "orchestration_platform.application.execution_runner._build_llm_client",
             return_value=sentinel,
         ) as factory:
             from orchestration_platform.api.routers.execution_instance_router import (
@@ -151,8 +154,9 @@ class TestFactoryFailureSkip:
     """T2-3：工厂失败 → LLM 跳过注册 + 告警，不拖垮启动（FR-02）。"""
 
     def test_llm_skipped_with_warning_others_unaffected(self, caplog):
+        # 2026-11-23 M1 守护重定向：同上，patch 目标随代码迁移改指 runner
         with patch(
-            "orchestration_platform.api.routers.execution_instance_router._build_llm_client",
+            "orchestration_platform.application.execution_runner._build_llm_client",
             return_value=None,
         ):
             from orchestration_platform.api.routers.execution_instance_router import (

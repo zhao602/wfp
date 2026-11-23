@@ -58,6 +58,27 @@ class Settings(BaseSettings):
     instance_timeout_seconds: int = Field(default=1800, description="实例级超时（秒）")
     instance_max_concurrency: int = Field(default=20, description="实例最大并发数")
 
+    # ---------------- 执行模式与队列（roadmap-v3 中期窗口 M1，F1 执行队列与提交路径统一） ----------------
+    # execution_mode 默认 in_process：行为与历史完全等价（提交器内部仍是
+    # create_task 进程内执行），3468 基线测试与本地开发零感知；
+    # worker：提交器入队 execution_job，独立 worker 进程认领执行（M2 落地）。
+    execution_mode: Literal["in_process", "worker"] = Field(
+        default="in_process",
+        description="执行模式（in_process=API 进程内执行，与历史行为完全等价；worker=入队由独立 worker 进程认领执行）",
+    )
+    execution_queue_lease_seconds: int = Field(
+        default=30, ge=1, description="执行队列租约时长（秒）：认领即持租约，过期可被接管"
+    )
+    execution_queue_heartbeat_seconds: int = Field(
+        default=10, ge=1, description="执行队列心跳续租间隔（秒）：worker 执行期周期续租"
+    )
+    execution_queue_poll_interval_seconds: float = Field(
+        default=1.0, gt=0, description="执行队列轮询间隔（秒）：worker 认领循环间隔"
+    )
+    execution_queue_dir: str = Field(
+        default="./.data/execution_queue", description="本地文件执行队列存储目录（local_file 后端）"
+    )
+
     # ---------------- LangGraph 适配层 ----------------
     langgraph_checkpointer_mode: Literal["memory", "custom"] = Field(
         default="custom", description="检查点模式：custom 由平台仓储持久化"

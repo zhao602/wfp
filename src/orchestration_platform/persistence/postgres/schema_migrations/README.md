@@ -22,6 +22,7 @@
 | 5 | `v1_5_rename_governance_tables.sql` | 1.5 | 治理表更名与仓储契约对齐（`governance_*`） | `v1_5_rollback.sql` |
 | 6 | `v1_6_tenant_hardening.sql` | 1.6 | 多租户强隔离第一段：8 张可空表 backfill + `SET NOT NULL`（roadmap B1） | `v1_6_rollback.sql` |
 | 7 | `v1_7_enable_rls.sql` | 1.7 | 多租户强隔离第二段：21 表 + 3 分区 RLS 策略三件套（roadmap B1） | `v1_7_rollback.sql` |
+| 8 | `v1_8_execution_queue.sql` | 1.8 | 执行队列表 `execution_job`（租约/心跳字段 + 幂等键部分唯一索引 + 认领/接管扫描部分索引，roadmap M1） | `v1_8_execution_queue_rollback.sql` |
 
 ## 执行方式
 
