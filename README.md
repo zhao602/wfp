@@ -122,4 +122,5 @@ npx tsc --noEmit   # 类型检查（13 基线错误为已知存量，口径零�
 | [docs/architecture-review-2026-11.md](docs/architecture-review-2026-11.md) | 架构评审基线（2026-11） |
 | [docs/differentiation-strategy-2026-11.md](docs/differentiation-strategy-2026-11.md) | 差异化定位与竞争策略 |
 | [docs/project-status-and-roadmap-2026-11.md](docs/project-status-and-roadmap-2026-11.md) | 项目状态与 B 批次路线图 |
+| [docs/roadmap-v3-longterm-execution-2026-11.md](docs/roadmap-v3-longterm-execution-2026-11.md) | V3 长期执行方案与实现路径（B9–B16 批次化） |
 | [docs/phase4_ecosystem_summary.md](docs/phase4_ecosystem_summary.md) | 生态阶段能力摘要 |
