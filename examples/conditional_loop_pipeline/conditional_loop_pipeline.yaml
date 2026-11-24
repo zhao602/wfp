@@ -40,7 +40,7 @@ nodes:
     node_type: agent
     output_name: draft
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: 你是一名内容撰写者，请根据主题生成初稿，输出 text 字段与 score 字段（初始 0）。
 
   - node_id: review_loop
@@ -57,7 +57,7 @@ nodes:
     node_type: agent
     output_name: draft
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: 你是一名评审专家，请审阅初稿并给出修订稿，输出 text 字段与 score 字段（0~100）。
 
   - node_id: display_result

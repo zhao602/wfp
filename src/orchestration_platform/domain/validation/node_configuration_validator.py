@@ -422,16 +422,24 @@ class NodeConfigurationValidator:
         return []
 
     # ------------------------------------------------------------------
-    # Agent 节点：必备 model_identifier
+    # Agent 节点：model_identifier 留空 = 跟随全局主模型（WARNING 提示）
     # ------------------------------------------------------------------
     def _validate_agent(self, node: NodeDefinition) -> List[ValidationIssue]:
         config: AgentNodeConfiguration = node.configuration
         if not config.model_identifier or not config.model_identifier.strip():
+            # 跟随全局语义（2026-11-20）：留空 = 运行时回退 settings
+            # llm_primary_model（HttpLlmClient 对空 request.model_identifier
+            # 本就回退构造期模型）；不再判 ERROR，降为 WARNING 可辨识提示，
+            # 避免 .env 换模型后已落盘工作流因旧模型名 403。
             return [
                 ValidationIssue(
                     code=WF_VALIDATION_FAILED,
-                    severity=Severity.ERROR,
-                    message=f"Agent 节点 {node.node_id} 缺少模型配置：model_identifier 不能为空",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Agent 节点 {node.node_id} model_identifier 为空："
+                        f"运行时跟随全局主模型（LLM_PRIMARY_MODEL）；"
+                        f"如需显式钉住请在节点配置填写模型名"
+                    ),
                     node_id=node.node_id,
                 )
             ]
@@ -1731,8 +1739,8 @@ class NodeConfigurationValidator:
     def _validate_llm(self, node: NodeDefinition) -> List[ValidationIssue]:
         """大模型节点加载期校验（FR-04 / FR-10 / FR-13 / AC-04 / AC-15）。
 
-        - model_identifier 去空白后非空（FR-04：消息含节点标识与
-          「缺少模型标识」，不校验是否在候选集内——允许自定义）；
+        - model_identifier 留空 = 跟随全局主模型（WARNING 提示，FR-04
+          修订 2026-11-20）；显式填写不校验是否在候选集内——允许自定义；
         - system_prompt / user_prompt ≤ 32768 字符（design §2.3.2(1)）；
         - 采样六参数走 validate_sampling 单一权威（INV-12 / FR-13），
           违规消息「参数名 + 实际值 + 允许区间」（如「温度 2.5 超出
@@ -1744,15 +1752,18 @@ class NodeConfigurationValidator:
         config: LlmNodeConfiguration = node.configuration
         issues: List[ValidationIssue] = []
 
-        # 必备项：模型标识（FR-04）
+        # 模型标识（FR-04 修订 2026-11-20）：留空 = 跟随全局主模型
+        # （运行时 HttpLlmClient 回退构造期模型 = settings.llm_primary_model），
+        # 降为 WARNING 可辨识提示，不再判 ERROR；显式填写仍按原语义。
         if not config.model_identifier or not config.model_identifier.strip():
             issues.append(
                 ValidationIssue(
                     code=WF_VALIDATION_FAILED,
-                    severity=Severity.ERROR,
+                    severity=Severity.WARNING,
                     message=(
-                        f"{LLM_PARAM_INVALID}: 大模型节点 {node.node_id} "
-                        f"缺少模型标识：model_identifier 不能为空"
+                        f"大模型节点 {node.node_id} "
+                        f"model_identifier 为空：运行时跟随全局主模型"
+                        f"（LLM_PRIMARY_MODEL）；如需显式钉住请在节点配置填写模型名"
                     ),
                     node_id=node.node_id,
                 )

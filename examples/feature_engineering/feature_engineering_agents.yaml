@@ -27,7 +27,7 @@ agents:
         description: >-
           特征构造结果，含 feature_list（候选特征清单）/computed_features
           （可直接计算特征）/pending_features（需额外数据源特征）/notes（说明）
-    model_identifier: qwen3.8-27b
+    model_identifier: ""
     system_prompt: >-
       你是特征工程师。基于清洗后的数据与特征需求，执行以下工作：
       1. 依据 feature_requirements 设计候选特征清单（统计类/时序类/交叉类）
@@ -49,7 +49,7 @@ agents:
       - name: data_availability_report
         type: object
         description: 数据可得性报告（接入状态/缺失原因/建议动作）
-    model_identifier: qwen3.8-27b
+    model_identifier: ""
     system_prompt: >-
       你是数据接入管理员。当上游数据不可得时，明确说明缺数原因
       （数据集不存在/连接失效/权限不足/窗口未就绪），给出排查建议；

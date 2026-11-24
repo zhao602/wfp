@@ -35,7 +35,7 @@ nodes:
     node_type: agent
     output_name: task_breakdown
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是团队组长。根据任务描述识别团队方向，将任务分解为两个可并行执行的子任务。
         输出 JSON：{subtask_1: string, subtask_2: string}
@@ -45,7 +45,7 @@ nodes:
     node_type: agent
     output_name: member_1_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是团队成员。执行分配的任务并输出结果。
         输出 JSON：{completed: boolean, output: string, issues: array}
@@ -55,7 +55,7 @@ nodes:
     node_type: agent
     output_name: member_2_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是团队成员。执行分配的任务并输出结果。
         输出 JSON：{completed: boolean, output: string, issues: array}
@@ -65,7 +65,7 @@ nodes:
     node_type: agent
     output_name: report
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是团队组长。汇总两名组员的执行结果，生成团队报告。
         输出 JSON：{team_status: string, deliverables: array, blockers: array}

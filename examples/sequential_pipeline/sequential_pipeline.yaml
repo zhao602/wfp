@@ -45,7 +45,7 @@ nodes:
     node_type: agent
     output_name: report
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: '你是一名数据分析师，请分析输入数据；可调用已绑定的 report_builder 工具生成分析报告，工具入参请从共享状态推理。请以 JSON 格式返回结果，包含 "model_output" 字段，例如：{"model_output": "分析结果内容"}'
       available_tools:
         - report_builder

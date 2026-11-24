@@ -439,7 +439,8 @@ class TestValidateLlmNode:
     """大模型节点加载期校验：模型标识 / 提示词上界 / 采样取值域 / 输出结构。
 
     语义错误码作消息前缀（LLM_PARAM_INVALID: ...，D-04），issue.code 统一
-    WF_VALIDATION_FAILED、severity=ERROR（既有校验契约不变）。
+    WF_VALIDATION_FAILED；模型标识留空自 2026-11-20 起降为 WARNING
+    （跟随全局主模型语义），其余违规保持 severity=ERROR 契约。
     """
 
     def setup_method(self):
@@ -454,17 +455,18 @@ class TestValidateLlmNode:
             _make_llm_definition({"user_prompt": "hi"})
 
     @pytest.mark.parametrize("model_identifier", ["", "   ", "\t\n "])
-    def test_blank_model_identifier_rejected(self, model_identifier):
+    def test_blank_model_identifier_follows_global(self, model_identifier):
+        # 跟随全局语义（2026-11-20 修订 FR-04）：留空 = 运行时回退
+        # settings.llm_primary_model，降为 WARNING 可辨识提示，不再 ERROR。
         definition = _make_llm_definition({"model_identifier": model_identifier})
         issues = self.validator.validate(definition)
 
         assert len(issues) == 1
         issue = issues[0]
         assert issue.code == WF_VALIDATION_FAILED
-        assert issue.severity == Severity.ERROR
+        assert issue.severity == Severity.WARNING
         assert issue.node_id == "llm-0"
-        assert issue.message.startswith(f"{LLM_PARAM_INVALID}: ")
-        assert "缺少模型标识" in issue.message
+        assert "跟随全局主模型" in issue.message
         assert "model_identifier" in issue.message
 
     def test_validate_node_dispatches_llm(self):
@@ -476,7 +478,8 @@ class TestValidateLlmNode:
         )
         issues = self.validator._validate_node(node)
         assert issues
-        assert issues[0].message.startswith(f"{LLM_PARAM_INVALID}: ")
+        assert issues[0].severity == Severity.WARNING
+        assert "跟随全局主模型" in issues[0].message
 
     def test_valid_minimal_llm_node_passes(self):
         definition = _make_llm_definition({"model_identifier": "primary-model"})
@@ -650,3 +653,61 @@ class TestValidateLlmNode:
             f"{LLM_PARAM_INVALID}: 大模型节点 llm-0 输出结构字段 'result' "
             "声明的类型 'blob' 未登记（类型名须 ∈ 既有类型映射）"
         )
+
+
+# =============================================================================
+# Agent 节点模型标识校验（2026-11-20 跟随全局语义：留空 = WARNING 提示）
+# =============================================================================
+
+
+def _make_agent_definition(*configs: dict) -> WorkflowDefinition:
+    """构造仅含 Agent 节点的测试定义（聚焦节点级校验）。"""
+    nodes = [
+        NodeDefinition(
+            node_id=f"agent-{index}",
+            node_type=NodeType.AGENT,
+            configuration=config,
+        )
+        for index, config in enumerate(configs)
+    ]
+    return WorkflowDefinition(
+        definition_id="wf-agent-validation",
+        name="Agent 节点校验测试",
+        spec_version="1.0",
+        nodes=nodes,
+        edges=[],
+        inputs=[],
+    )
+
+
+class TestValidateAgentNodeModel:
+    """Agent 节点 model_identifier：显式填写零 issue；留空 = 跟随全局 WARNING。"""
+
+    def setup_method(self):
+        self.validator = NodeConfigurationValidator()
+
+    def test_explicit_model_identifier_passes_clean(self):
+        definition = _make_agent_definition({"model_identifier": "primary-model"})
+        assert self.validator.validate(definition) == []
+
+    @pytest.mark.parametrize("model_identifier", ["", "   "])
+    def test_blank_model_identifier_follows_global(self, model_identifier):
+        definition = _make_agent_definition({"model_identifier": model_identifier})
+        issues = self.validator.validate(definition)
+
+        assert len(issues) == 1
+        issue = issues[0]
+        assert issue.code == WF_VALIDATION_FAILED
+        assert issue.severity == Severity.WARNING
+        assert issue.node_id == "agent-0"
+        assert "跟随全局主模型" in issue.message
+        assert "LLM_PRIMARY_MODEL" in issue.message
+
+    def test_single_node_failure_does_not_block_others(self):
+        definition = _make_agent_definition(
+            {"model_identifier": ""},
+            {"model_identifier": "primary-model"},
+        )
+        issues = self.validator.validate(definition)
+        assert len(issues) == 1
+        assert issues[0].node_id == "agent-0"

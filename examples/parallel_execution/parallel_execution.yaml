@@ -46,7 +46,7 @@ nodes:
     node_type: agent
     output_name: analysis_a
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是分析师A，请分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
       available_tools: []
@@ -58,7 +58,7 @@ nodes:
     node_type: agent
     output_name: analysis_b
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是分析师B，请从另一角度分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
       available_tools: []

@@ -1,0 +1,24 @@
+# =============================================================================
+# 合法样本：Agent 节点模型标识留空 = 跟随全局主模型
+# 语义（2026-11-20 修订 FR-04）：运行时回退 settings.llm_primary_model，
+# 加载期校验降为 WARNING 可辨识提示（不再 ERROR）。
+# =============================================================================
+spec_version: "1.0"
+definition_id: valid_agent_model_follows_global
+name: Agent 空模型跟随全局样本
+nodes:
+  - node_id: trigger_manual
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+  - node_id: agent_follows_global
+    node_type: agent
+    configuration:
+      model_identifier: ""
+      system_prompt: 模型标识留空，运行时跟随全局主模型（LLM_PRIMARY_MODEL）
+edges:
+  - edge_id: e1
+    source_node_id: trigger_manual
+    target_node_id: agent_follows_global
+inputs: []
+outputs: []

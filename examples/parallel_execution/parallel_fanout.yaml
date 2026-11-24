@@ -47,7 +47,7 @@ nodes:
     node_type: agent
     output_name: research_plan
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是课题统筹，请将查询拆解为两个分析视角并输出 JSON：{plan: string}。
       available_tools: []
@@ -60,7 +60,7 @@ nodes:
     node_type: agent
     output_name: analysis_a
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是分析师A，请基于拆解结论分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
       available_tools: []
@@ -73,7 +73,7 @@ nodes:
     node_type: agent
     output_name: analysis_b
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是分析师B，请从另一角度基于拆解结论分析查询并输出 JSON：{viewpoint: string, conclusion: string}。
       available_tools: []

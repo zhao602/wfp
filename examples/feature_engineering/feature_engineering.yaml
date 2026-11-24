@@ -84,7 +84,7 @@ nodes:
     node_type: agent
     output_name: feature_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是特征工程师。基于清洗后的数据与特征需求，执行以下工作：
         1. 依据 feature_requirements 设计候选特征清单（统计类/时序类/交叉类）

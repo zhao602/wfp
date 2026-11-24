@@ -44,7 +44,7 @@ nodes:
     node_type: agent
     output_name: director_plan
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是项目总监。分析任务描述，将任务分解为两个子任务，
         分别委派给前端组长和后端组长，任务描述中明确写出团队方向（前端/后端）。
@@ -81,7 +81,7 @@ nodes:
     node_type: agent
     output_name: final_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是项目总监。根据前端组和后端组的报告，
         生成最终项目总结报告。输出 JSON：{summary: string, status: string, key_findings: array}

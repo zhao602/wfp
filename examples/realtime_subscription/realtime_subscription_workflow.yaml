@@ -40,7 +40,7 @@ nodes:
     node_type: agent
     output_name: event_classification
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是事件分类 Agent。分析事件数据并分类。
         输出 JSON：{category: string, priority: string, requires_action: boolean}
@@ -66,7 +66,7 @@ nodes:
     node_type: agent
     output_name: high_priority_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是高优先级事件处理 Agent。立即处理事件并生成紧急响应。
         输出 JSON：{action_taken: string, result: string, alert_sent: boolean}
@@ -76,7 +76,7 @@ nodes:
     node_type: agent
     output_name: normal_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是常规事件处理 Agent。处理事件并生成标准响应。
         输出 JSON：{action_taken: string, result: string}

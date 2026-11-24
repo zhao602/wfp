@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     NODE_AGENT_OUTPUT_INVALID,
     NODE_INPUT_REFERENCE_MISSING,
@@ -33,6 +32,7 @@ from orchestration_platform.domain.models.node_configurations import (
 )
 from orchestration_platform.domain.models.node_definition import NodeDefinition
 from orchestration_platform.domain.models.shared_state import SharedState
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.nodes.agent_node_executor import AgentNodeExecutor
 from orchestration_platform.engine.nodes.base import NodeExecutionContext
 from orchestration_platform.integrations.abstractions.external_clients import (
@@ -289,11 +289,28 @@ class TestLegacyEquivalence:
         assert result.error_message == "LLM 推理失败：boom"
 
     def test_fallback_switch_on_primary_failure(self):
-        """主模型失败 → 切备用成功；备用请求 model_identifier 取全局备用模型
-        （缺省回落主模型标识）。"""
-        settings = get_settings()
-        expected_model = settings.llm_fallback_model or "primary-model"
+        """主模型失败 → 切备用成功；备用请求 model_identifier 取注入的备用模型
+        （A 类迁移：executor 不再读全局 settings，由构造注入定值）。"""
+        primary = _llm_client([InferenceResult(success=False, error_message="down")])
+        fallback = _llm_client([
+            InferenceResult(success=True, content="from-fallback"),
+        ])
+        executor = AgentNodeExecutor(
+            llm_client=primary,
+            fallback_llm_client=fallback,
+            settings=EngineSettings(llm_fallback_model="fallback-model-name"),
+        )
+        result = run_coro(executor.execute(_make_context(_make_config())))
 
+        assert result.success is True
+        assert result.output_value == {"content": "from-fallback"}
+        fallback.infer.assert_awaited_once()
+        fb_request = fallback.infer.call_args_list[0].args[0]
+        assert fb_request.model_identifier == "fallback-model-name"
+
+    def test_fallback_model_defaults_to_primary_identifier(self):
+        """备用模型缺省（EngineSettings 默认 llm_fallback_model=""）
+        → 备用请求回落主模型标识（原 env 依赖缺省分支的确定化）。"""
         primary = _llm_client([InferenceResult(success=False, error_message="down")])
         fallback = _llm_client([
             InferenceResult(success=True, content="from-fallback"),
@@ -304,10 +321,9 @@ class TestLegacyEquivalence:
         result = run_coro(executor.execute(_make_context(_make_config())))
 
         assert result.success is True
-        assert result.output_value == {"content": "from-fallback"}
         fallback.infer.assert_awaited_once()
         fb_request = fallback.infer.call_args_list[0].args[0]
-        assert fb_request.model_identifier == expected_model
+        assert fb_request.model_identifier == "primary-model"
 
     def test_fallback_also_fails(self):
         """主备均失败 → NODE_LLM_UNAVAILABLE「主备模型均不可用：…」+ 

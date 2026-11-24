@@ -70,7 +70,7 @@ nodes:
     node_type: agent
     output_name: drift_analysis
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是数据漂移检测专家。对比当前数据（current_data）与基线数据（baseline_data），执行以下工作：
         1. 识别特征分布偏移（均值/方差/分位数/类别占比）
@@ -87,7 +87,7 @@ nodes:
     node_type: agent
     output_name: baseline_status
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         基线数据集未建立，本次不具备漂移判定条件。
         不做任何漂移推断、不给出 drift_detected=true、不编造漂移特征。

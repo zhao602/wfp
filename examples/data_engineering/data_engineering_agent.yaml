@@ -84,7 +84,7 @@ nodes:
     node_type: agent
     output_name: analysis_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是数据分析师。根据清洗聚合后的数据（clean_data）与分析目标（analysis_goal），执行以下分析：
         1. 识别销售趋势与异常

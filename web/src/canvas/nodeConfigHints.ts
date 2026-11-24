@@ -63,7 +63,7 @@ export const NODE_HINTS: NodeHintMap = {
     nodeHint: "由大模型驱动的智能节点，依据提示词完成推理、生成或决策任务。",
     fields: {
       model_identifier: {
-        helper: "从平台已配置的模型中选择该节点使用的模型；候选来自运行环境的模型配置。未检测到已配置模型时可手工填写，手工填写的模型可能不可用。",
+        helper: "从平台已配置的模型中选择该节点使用的模型，或选择「跟随全局主模型」（留空 = 运行时自动使用 .env 的 LLM_PRIMARY_MODEL，更换模型无需逐节点修改）。候选来自运行环境的模型配置；未检测到已配置模型时可手工填写，手工填写的模型可能不可用。",
         placeholder: "例如：通用对话模型",
       },
       system_prompt: {
@@ -557,7 +557,7 @@ export const NODE_HINTS: NodeHintMap = {
       "大模型推理节点：单轮「装配 → 请求 → 透出」薄链路，将上游输入与提示词送入模型并原样透出文本结果。",
     fields: {
       model_identifier: {
-        helper: "从平台已配置的模型中选择该节点使用的模型；候选来自运行环境的模型配置。",
+        helper: "从平台已配置的模型中选择该节点使用的模型，或选择「跟随全局主模型」（留空 = 运行时自动使用 .env 的 LLM_PRIMARY_MODEL）。候选来自运行环境的模型配置。",
         placeholder: "例如：通用对话模型",
       },
       system_prompt: {
@@ -585,7 +585,7 @@ export const NODE_HINTS: NodeHintMap = {
         helper: "（可选）Top K，取值 0 或 1~100；显式配置且大于 0 时发送。",
       },
       max_tokens: {
-        helper: "（可选）最大生成长度，取值 1~32768；未配置时按运行默认（4096）发送。",
+        helper: "（可选）最大生成长度，取值 1~32768；未配置时按运行默认（4096）发送。注意：推理模型（如 DeepSeek-R 系列）把思考计入生成额度，max_tokens 过小会导致思考耗尽额度、正文输出为空（运行将报可辨识错误）。",
       },
       stop: {
         helper: "（可选）停止序列，至多 4 条且每条 1~128 字符，去重保序；未配置时不发送。",

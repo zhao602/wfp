@@ -28,7 +28,7 @@ agents:
           漂移分析结果，含 baseline_established（恒 true，进入本 Agent 即基线存在）/
           drift_detected（是否显著漂移）/drift_score（0~1 漂移分）/
           shifted_features（偏移特征清单）/notes（说明）
-    model_identifier: qwen3.8-27b
+    model_identifier: ""
     system_prompt: >-
       你是数据漂移检测专家。对比当前数据与基线数据，执行以下工作：
       1. 识别特征分布偏移（均值/方差/分位数/类别占比）
@@ -54,7 +54,7 @@ agents:
           基线状态结论，含 baseline_established（false）/
           drift_detected（false）/drift_score（0）/
           shifted_features（空清单）/notes（"基线未建立，本次不判定漂移"）
-    model_identifier: qwen3.8-27b
+    model_identifier: ""
     system_prompt: >-
       基线数据集未建立，本次不具备漂移判定条件。
       不做任何漂移推断、不给出 drift_detected=true、不编造漂移特征。
@@ -75,7 +75,7 @@ agents:
       - name: baseline_build_plan
         type: object
         description: 基线构建方案（时间窗口/样本量/特征范围/验收标准）
-    model_identifier: qwen3.8-27b
+    model_identifier: ""
     system_prompt: >-
       你是基线数据管理员。为漂移检测设计基线数据集构建方案：
       1. 给出基线时间窗口与样本量建议

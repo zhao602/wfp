@@ -16,7 +16,10 @@
 //   5. 降级（DC-06）：ready 且空候选 / failed → 手工输入框 + 提示，
 //      value 原值进入输入框，不重试、不阻断、无未捕获异常；
 //   6. 自定义入口（OP-05）：ready 态候选末提供「自定义模型」切换行，
-//      切换为手工输入写回 model_identifier。
+//      切换为手工输入写回 model_identifier；
+//   7. 跟随全局（2026-11-20 修订 FR-04）：候选列表顶部固定「跟随全局主模型」
+//      卡片（值 = 空串），运行时回退 .env 的 LLM_PRIMARY_MODEL；空值呈选中态，
+//      单击即写回 ""（.env 换模型无需逐节点同步，校验器对空值降 WARNING）。
 // =============================================================================
 
 import { useEffect, useState } from "react";
@@ -43,6 +46,12 @@ const CUSTOM_MODEL_HINT = "未经 .env 配置的模型可能不可用";
 
 /** 候选外当前值标注（DC-04，视觉与 wfp-tsl-invalid-tag 同族） */
 const OUT_OF_CANDIDATES_TAG = "未在已配置模型内";
+
+/** 跟随全局主模型卡片（2026-11-20 修订 FR-04：留空 = 运行时回退全局主模型） */
+const FOLLOW_GLOBAL_LABEL = "跟随全局主模型";
+const FOLLOW_GLOBAL_TAG = "推荐 · 读 .env";
+const FOLLOW_GLOBAL_HINT =
+  "留空 = 运行时自动使用 .env 的 LLM_PRIMARY_MODEL，更换模型无需逐节点修改";
 
 /** ModelSelectionList 属性（受控单值组件，与 ToolSelectionList 同构的受控风格） */
 export interface ModelSelectionListProps {
@@ -112,6 +121,23 @@ export default function ModelSelectionList({
     modelValue.trim() !== "" && !models.some((m) => m.model_identifier === modelValue)
       ? modelValue
       : "";
+
+  /** 跟随全局主模型卡片：空值 = 选中态；单击写回空串（运行时回退 LLM_PRIMARY_MODEL） */
+  const renderFollowGlobalCard = (): JSX.Element => {
+    const selected = modelValue.trim() === "";
+    return (
+      <div
+        className={
+          selected ? "wfp-msl-card wfp-msl-card-selected" : "wfp-msl-card"
+        }
+        title={FOLLOW_GLOBAL_LABEL}
+        onClick={() => onChange("")}
+      >
+        <span className="wfp-msl-identifier">{FOLLOW_GLOBAL_LABEL}</span>
+        <span className="wfp-msl-source">{FOLLOW_GLOBAL_TAG}</span>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -218,9 +244,16 @@ export default function ModelSelectionList({
         )}
         {status === "ready" && !customMode && (
           <>
-            {models.length === 0 && renderManualInput(EMPTY_CANDIDATES_HINT)}
+            {models.length === 0 && (
+              <>
+                {renderFollowGlobalCard()}
+                <div className="wfp-msl-hint">{FOLLOW_GLOBAL_HINT}</div>
+                {renderManualInput(EMPTY_CANDIDATES_HINT)}
+              </>
+            )}
             {models.length > 0 && (
               <>
+                {renderFollowGlobalCard()}
                 {models.map((model) => {
                   const selected = model.model_identifier === modelValue;
                   return (

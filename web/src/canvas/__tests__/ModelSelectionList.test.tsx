@@ -26,6 +26,10 @@ vi.mock("../../api/orchestrationApiClient", () => ({
 
 import ModelSelectionList from "../ModelSelectionList";
 
+/** 跟随全局提示文案（与组件常量同源手工镜像，防组件内文案漂移） */
+const FOLLOW_GLOBAL_HINT_TEXT =
+  "留空 = 运行时自动使用 .env 的 LLM_PRIMARY_MODEL，更换模型无需逐节点修改";
+
 /** 样例候选：主 / 备 各一项 */
 const MODELS: AvailableModelItem[] = [
   { model_identifier: "gpt-primary", source: "primary" },
@@ -220,5 +224,53 @@ describe("L-02 value 运行时宽容归一（fix_agent_null_length）", () => {
     expect(onChange).toHaveBeenCalledWith("typed-model");
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-F10 跟随全局主模型卡片（2026-11-20 修订 FR-04：留空 = 运行时回退 LLM_PRIMARY_MODEL）
+// ---------------------------------------------------------------------------
+
+describe("TC-F10 跟随全局主模型卡片", () => {
+  it("TC-F10-a 候选态置顶渲染，空值呈选中态，单击写回空串", async () => {
+    listAvailableModelsMock.mockResolvedValue(modelsResponse(MODELS));
+    const onChange = vi.fn();
+    render(<ModelSelectionList value="" onChange={onChange} />);
+    await waitFor(() => {
+      expect(screen.getByTitle("跟随全局主模型")).toBeTruthy();
+    });
+    const card = screen.getByTitle("跟随全局主模型");
+    expect(card.className).toContain("wfp-msl-card-selected");
+    expect(screen.getByText("推荐 · 读 .env")).toBeTruthy();
+    fireEvent.click(card);
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("TC-F10-b 非空值时卡片不选中，单击可切换为跟随全局", async () => {
+    listAvailableModelsMock.mockResolvedValue(modelsResponse(MODELS));
+    const onChange = vi.fn();
+    render(<ModelSelectionList value="legacy-model" onChange={onChange} />);
+    await waitFor(() => {
+      expect(screen.getByTitle("跟随全局主模型")).toBeTruthy();
+    });
+    const card = screen.getByTitle("跟随全局主模型");
+    expect(card.className).not.toContain("wfp-msl-card-selected");
+    fireEvent.click(card);
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("TC-F10-c 空候选降级态同样提供跟随全局卡片 + 提示", async () => {
+    listAvailableModelsMock.mockResolvedValue(modelsResponse([]));
+    const onChange = vi.fn();
+    render(<ModelSelectionList value="legacy-model" onChange={onChange} />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("未检测到已配置模型，请检查 .env 的 LLM_PRIMARY_MODEL"),
+      ).toBeTruthy();
+    });
+    expect(screen.getByText(FOLLOW_GLOBAL_HINT_TEXT)).toBeTruthy();
+    const card = screen.getByTitle("跟随全局主模型");
+    fireEvent.click(card);
+    expect(onChange).toHaveBeenCalledWith("");
   });
 });

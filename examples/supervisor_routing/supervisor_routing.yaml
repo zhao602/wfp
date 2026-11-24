@@ -37,7 +37,7 @@ nodes:
     node_type: agent
     output_name: routing_decision
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是监督者，分析查询并决定路由到财务分析或运营分析。
         输出 JSON：{route: string, reason: string}，
@@ -69,7 +69,7 @@ nodes:
     node_type: agent
     output_name: finance_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是财务分析师，请分析财务相关查询，输出 JSON：{conclusion: string, key_points: array}。
       available_tools: []
@@ -81,7 +81,7 @@ nodes:
     node_type: agent
     output_name: operations_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是运营分析师，请分析运营相关查询，输出 JSON：{conclusion: string, key_points: array}。
       available_tools: []

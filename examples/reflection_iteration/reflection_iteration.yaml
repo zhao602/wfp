@@ -46,7 +46,7 @@ nodes:
     node_type: agent
     output_name: generation_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是生成 Agent。根据任务描述和之前的反馈（如有）生成或改进输出。
         首次生成时无反馈，请直接根据任务生成。
@@ -58,7 +58,7 @@ nodes:
     node_type: agent
     output_name: critique_result
     configuration:
-      model_identifier: qwen3.8-27b
+      model_identifier: ""
       system_prompt: >-
         你是评审 Agent。评估生成内容的质量。
         评分维度：准确性、完整性、清晰度、实用性，各 0-1 分。
