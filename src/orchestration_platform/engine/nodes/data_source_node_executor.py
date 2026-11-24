@@ -120,16 +120,17 @@ class DataSourceNodeExecutor:
     ) -> NodeExecutionResult:
         """转换 DataSourceReadResult 为 NodeExecutionResult（DC-1）。
 
-        空结果 → 成功 + count=0（AC-12）。
+        输出值为原始数据集列表（list[dict]，与 NODE_OUTPUT_CATEGORIES 登记的
+        DATA_SOURCE value_kind="dataset" 及下游 data_transform
+        expected_kind="dataset" 装配契约对齐；此前 {"rows": ..., "count": ...}
+        信封为 object 类别，导致 数据源 → 数据转换 直连在运行期必然失败）。
+        空结果 → 成功 + 空数据集 []（AC-12）。
         metadata 仅含 connection_reference，不含连接参数明细（INV-5/AC-15）。
         """
         return NodeExecutionResult(
             success=True,
             output_name=output_name,
-            output_value={
-                "rows": read_result.data,
-                "count": len(read_result.data),
-            },
+            output_value=read_result.data,
             metadata={"connection_reference": connection_reference},
         )
 

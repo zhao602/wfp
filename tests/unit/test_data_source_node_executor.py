@@ -63,7 +63,7 @@ class TestExecuteSuccessPath:
     """AC-1/AC-11/AC-12/AC-15：成功路径。"""
 
     def test_csv_query_returns_rows(self):
-        """source_type=CSV + mock 连接器返回数据 → success=True, rows/count 正确。"""
+        """source_type=CSV + mock 连接器返回数据 → success=True，输出原始数据集列表。"""
         mock_connector = MagicMock()
         mock_connector.read = AsyncMock(return_value=DataSourceReadResult(data=[{"a": 1}, {"b": 2}]))
         mock_registry = MagicMock()
@@ -74,11 +74,10 @@ class TestExecuteSuccessPath:
         result = run_coro(executor.execute(_make_context(config)))
 
         assert result.success is True
-        assert result.output_value["rows"] == [{"a": 1}, {"b": 2}]
-        assert result.output_value["count"] == 2
+        assert result.output_value == [{"a": 1}, {"b": 2}]
 
     def test_empty_result_success(self):
-        """AC-12：空结果 → success=True, count=0。"""
+        """AC-12：空结果 → success=True，输出空数据集。"""
         mock_connector = MagicMock()
         mock_connector.read = AsyncMock(return_value=DataSourceReadResult(data=[]))
         mock_registry = MagicMock()
@@ -89,8 +88,7 @@ class TestExecuteSuccessPath:
         result = run_coro(executor.execute(_make_context(config)))
 
         assert result.success is True
-        assert result.output_value["count"] == 0
-        assert result.output_value["rows"] == []
+        assert result.output_value == []
 
     def test_metadata_only_connection_reference(self):
         """AC-15：metadata 仅含 connection_reference，不含连接参数明细。"""
@@ -232,15 +230,14 @@ class TestPrivateMethods:
         assert req.streaming is False
 
     def test_convert_result(self):
-        """data → rows, len(data) → count。"""
+        """data → 原始数据集列表（dataset 类别契约）。"""
         executor = DataSourceNodeExecutor()
         read_result = DataSourceReadResult(data=[{"x": 1}, {"y": 2}, {"z": 3}])
         nr = executor._convert_result(read_result, "output", "ds-1")
 
         assert nr.success is True
         assert nr.output_name == "output"
-        assert nr.output_value["rows"] == [{"x": 1}, {"y": 2}, {"z": 3}]
-        assert nr.output_value["count"] == 3
+        assert nr.output_value == [{"x": 1}, {"y": 2}, {"z": 3}]
 
     def test_sanitize_error_masks_credentials(self):
         """AC-15：凭据字段值替换为掩码。"""
