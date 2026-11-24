@@ -169,4 +169,4 @@ T3 性能 CI 门（3，先以本地 gate 脚本代 CI）；A7 文档一致性门
 1. **P1 已执行（2026-11-22）**：本文落档 + README 文档索引 +1 行；与在途 B8d 零文件冲突。
 2. **P2 已执行（2026-11-22）**：B8d e2e 批收口落 `main`（提交 `4d93831`，出口记录五节在档，v3 附录 B 已随批刷新）后，在 v3 §第三部分头部补本文交叉链接；并发冲突窗口解除后执行。
 3. **P3 两项裁决已定（2026-11-23）**：①B9 启动——已启动（M1 执行队列与统一提交路径落 `d2058a6`；M2 由并行会话以 `roadmap_m2_worker_process`（独立 worker 进程形态）执行中，本会话同日三件套（同进程形态）因撞批撤回，移交/差异项已登 §4 B9「M3 小批输入」）；②S2 走向——**xmlsec 验签落地**（摘 experimental，5–8 人日，插班时点建议 B15 前）。
-4. **B12 已执行（2026-11-24）**：P3 数据分块批收口——取数游标化 + 快照结构共享 + 变换行数守卫 + 检查点写路径 D7-lite（gate 触发后改道，spill-to-disk 经复测 140.7MB≤150MB 正式裁撤，行使 §8 风险 3 裁剪序②）；pipeline_100k 内存 248.1→140.7MB（−43.3%）、四基准 timing p95 −17%~−77%（A/B 同窗 worktree 对照，docs/benchmark.md §3.1）；出口记录五节在档（`.codeartsdoer/specs/roadmap_b12_data_chunking/`）；提交后置（staging 计划见出口记录 §4）。
+4. **B12 已执行（2026-11-24）**：P3 数据分块批收口——取数游标化 + 快照结构共享 + 变换行数守卫 + 检查点写路径 D7-lite（gate 触发后改道，spill-to-disk 经复测 140.7MB≤150MB 正式裁撤，行使 §8 风险 3 裁剪序②）；pipeline_100k 内存 248.1→140.7MB（−43.3%）、四基准 timing p95 −17%~−77%（A/B 同窗 worktree 对照，docs/benchmark.md §3.1）；出口记录五节在档（`.codeartsdoer/specs/roadmap_b12_data_chunking/`）；单提交落 `a32a647`（index surgery 排除并行批触点）。
