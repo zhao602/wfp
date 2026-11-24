@@ -41,7 +41,7 @@ _TEST_ENV_BASELINE = {
 for _key, _value in _TEST_ENV_BASELINE.items():
     os.environ.setdefault(_key, _value)
 
-import pytest
+import pytest  # noqa: E402  # 环境基线须先于任意 orchestration_platform 导入执行
 
 # 将 src 加入路径（与验证脚本一致）
 SRC_PATH = Path(__file__).resolve().parent.parent / "src"
