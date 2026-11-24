@@ -57,6 +57,12 @@ class InferenceResult(BaseModel):
     usage: Optional[Dict[str, JsonValue]] = Field(
         default=None, description="Token 用量统计（上游返回时）"
     )
+    # 2026-11-23 追加可选字段（CHG-11 追加先例，既有字段零变更）——
+    # 生成结束原因透传（"stop"/"length"/…）；空输出 + finish_reason="length"
+    # 是「推理额度被思考耗尽」的可辨识信号（诚实化：不静默返回空 content）
+    finish_reason: Optional[str] = Field(
+        default=None, description="生成结束原因（上游返回时）"
+    )
 
 
 # arch_review_gap_b2_observability_perf B2-C4（T4.3）：流式推理增量块。

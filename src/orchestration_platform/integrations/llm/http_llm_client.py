@@ -80,7 +80,7 @@ def build_chat_request_body(
     if request.sampling is None:
         # 既有两键分支（AC-16：未配置采样时与既有实现逐字节等价）
         body["temperature"] = 0.7
-        body["max_tokens"] = 4096
+        body["max_tokens"] = 16384
     else:
         # 唯一采样键集权威（INV-12 / DC-05）；越界时抛 ValueError
         body.update(to_request_payload(request.sampling))
@@ -326,7 +326,10 @@ class HttpLlmClient:
                     error_status_code=response.status_code,
                     error_detail=self._summarize_response_body(response),
                 )
+            # content=None（部分上游）规范化为空串，统一走空输出可辨识防护
             content = choices[0]["message"]["content"]
+            if content is None:
+                content = ""
         except Exception as exc:
             return InferenceResult(
                 success=False,
@@ -342,6 +345,36 @@ class HttpLlmClient:
                 tool_call_intent = {"tool_calls": tool_calls}
         except Exception:
             pass
+
+        # 2026-11-23 诚实化防护：空输出不静默当成功（可辨识失败）。
+        # 真实场景：deepseek 等 reasoning 模型把思考计入生成额度，
+        # max_tokens 过小时 finish_reason="length" 且 content=""（思考耗尽）。
+        # 排除 tool_call_intent 非空（ReAct 中间轮次 content 空属正常）。
+        finish_reason: Optional[str] = None
+        try:
+            finish_reason = choices[0].get("finish_reason")
+        except Exception:
+            pass
+        if (not content or not content.strip()) and tool_call_intent is None:
+            if finish_reason == "length":
+                return InferenceResult(
+                    success=False,
+                    error_message=(
+                        "LLM 输出为空：生成 token 上限耗尽（finish_reason=length），"
+                        "推理模型将思考计入生成额度，请提高该节点的 max_tokens"
+                    ),
+                    error_status_code=response.status_code,
+                    finish_reason=finish_reason,
+                )
+            return InferenceResult(
+                success=False,
+                error_message=(
+                    f"LLM 返回空内容（finish_reason={finish_reason or '未知'}），"
+                    "模型未产出任何文本"
+                ),
+                error_status_code=response.status_code,
+                finish_reason=finish_reason,
+            )
 
         structured_output: Optional[Dict[str, Any]] = None
         if request.output_schema is not None:
@@ -366,6 +399,7 @@ class HttpLlmClient:
             tool_call_intent=tool_call_intent,
             structured_output=structured_output,
             usage=usage,
+            finish_reason=finish_reason,
         )
 
     def _parse_stream_frame(self, payload: str) -> Optional[InferenceStreamChunk]:

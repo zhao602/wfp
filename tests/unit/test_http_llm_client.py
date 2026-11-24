@@ -346,6 +346,8 @@ class TestInferenceDataContract:
     def test_inference_result_field_set(self):
         # 2026-11-22 B7 W1b：新增 usage（provider 用量透传，CHG-11 追加先例，
         # 既有字段零变更）——字段集锚点同步更新（出口记录已登记）。
+        # 2026-11-23：新增 finish_reason（空输出诚实化防护的结束原因透传，
+        # 同 CHG-11 追加先例；既有字段零变更）。
         assert set(InferenceResult.model_fields.keys()) == {
             "success",
             "content",
@@ -356,6 +358,7 @@ class TestInferenceDataContract:
             "error_status_code",
             "error_detail",
             "usage",
+            "finish_reason",
         }
 
     def test_ilmm_client_infer_signature_unchanged(self):
@@ -415,7 +418,7 @@ class TestInferBodyIntegration:
             "max_tokens",
         }
         assert transport.captured_body["temperature"] == 0.7
-        assert transport.captured_body["max_tokens"] == 4096
+        assert transport.captured_body["max_tokens"] == 16384
 
     @pytest.mark.asyncio
     async def test_infer_sampling_forwarded_to_body(self):
@@ -631,3 +634,131 @@ class TestPrimaryFallbackModelSwitched:
         assert len(fallback.requests) == 1
         assert primary.requests[0] is request
         assert fallback.requests[0] is request
+
+class TestEmptyOutputGuard:
+    """2026-11-23 空输出诚实化防护：空 content 不静默当成功。
+
+    真实事故：deepseek reasoning 模型把思考计入生成额度，节点 max_tokens
+    过小（如 ≤160）时 finish_reason="length" 且 content=""（思考耗尽，
+    正文零字节）——原实现静默 success=True 导致节点输出 {"content": ""}。
+    """
+
+    def _client(self) -> HttpLlmClient:
+        return HttpLlmClient(
+            base_url="http://localhost:8080", api_key="sk-test", model="m"
+        )
+
+    @pytest.mark.asyncio
+    async def test_empty_content_with_length_fails_identifiably(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [
+                {"message": {"content": ""}, "finish_reason": "length"}
+            ],
+            "usage": {"completion_tokens": 100},
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await self._client().infer(_make_request())
+
+        assert result.success is False
+        assert result.finish_reason == "length"
+        assert "token 上限耗尽" in result.error_message
+        assert "max_tokens" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_empty_content_with_stop_fails_identifiably(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": ""}, "finish_reason": "stop"}]
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await self._client().infer(_make_request())
+
+        assert result.success is False
+        assert result.finish_reason == "stop"
+        assert "空内容" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_null_content_normalized_and_fails(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": None}, "finish_reason": "stop"}]
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await self._client().infer(_make_request())
+
+        assert result.success is False
+        assert "空内容" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_empty_content_with_tool_calls_still_succeeds(self):
+        """ReAct 中间轮次：content 空 + tool_calls 非空属正常（豁免防护）。"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call-1",
+                                "type": "function",
+                                "function": {"name": "search", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ]
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await self._client().infer(_make_request())
+
+        assert result.success is True
+        assert result.tool_call_intent is not None
+        assert result.finish_reason == "tool_calls"
+
+    @pytest.mark.asyncio
+    async def test_normal_content_carries_finish_reason(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [
+                {"message": {"content": "ok"}, "finish_reason": "stop"}
+            ]
+        }
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await self._client().infer(_make_request())
+
+        assert result.success is True
+        assert result.content == "ok"
+        assert result.finish_reason == "stop"

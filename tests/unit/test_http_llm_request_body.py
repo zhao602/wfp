@@ -3,9 +3,9 @@
 #
 # llm_and_code_nodes 任务 4.2 / 4.5（CHG-12 / DC-05 / DC-12 / FR-14 / FR-17 /
 # FR-18 / AC-14 / AC-16 / AC-19）：
-#   A1 未配置采样（sampling=None 或六参数全 None）→ 键集恰为
-#      {model, messages, temperature:0.7, max_tokens:4096}（AC-16 核心，
-#      断言键集合相等而非仅存在两键）；
+#   A1 未配置采样（sampling=None → temperature:0.7 / max_tokens:16384；
+#      六参数全 None → 经 llm_sampling_spec 语义缺省 max_tokens:4096）
+#      （AC-16 核心，断言键集合相等而非仅存在两键）；
 #   A2 逐参数显式 → 对应键出现且值一致；top_k=0 / stop=[] 不发送；
 #   越界 sampling → ValueError（不静默截断，DC-04）。
 #
@@ -47,7 +47,7 @@ class TestBuildChatRequestBodyA1:
         body = build_chat_request_body(_make_request())
         assert set(body.keys()) == _BASE_KEYS
         assert body["temperature"] == 0.7
-        assert body["max_tokens"] == 4096
+        assert body["max_tokens"] == 16384
         for absent in ("top_p", "top_k", "stop", "seed"):
             assert absent not in body
 
