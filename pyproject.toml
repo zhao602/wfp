@@ -45,14 +45,17 @@ postgres = [
 ]
 
 # SSO profile 依赖：SAML/OIDC 断言验签（roadmap S2）运行时惰性导入
-# （xmlsec 需系统级 libxmlsec1/gcrypt 运行库；PyJWT/lxml 为常规轮子）
+# （xmlsec 需系统级 libxmlsec1/gcrypt 运行库；cryptography 供 credential_cipher
+#   与 PyJWT RS256 验签使用）
 sso = [
     "xmlsec>=1.3",
     "PyJWT>=2.8",
     "lxml>=4.9",
+    "cryptography>=41",
 ]
 
 # 测试依赖：单元/集成/契约/性能测试所需
+# （test_sso_verification 生成测试证书/RSA 密钥需 cryptography）
 test = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -60,6 +63,7 @@ test = [
     "xmlsec>=1.3",
     "PyJWT>=2.8",
     "lxml>=4.9",
+    "cryptography>=41",
 ]
 
 # wfp 命令行入口（arch_review_v2 5.1，CHG-17；GK-09：依赖段零改动，仅追加本段）
