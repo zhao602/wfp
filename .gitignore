@@ -44,6 +44,7 @@ web/playwright-report/
 .arts/
 .deveco/
 .workbuddy/
+.slidep/
 
 # Windows / macOS 系统文件
 Thumbs.db
