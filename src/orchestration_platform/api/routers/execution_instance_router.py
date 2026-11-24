@@ -168,9 +168,21 @@ def _resolve_business_category(body: StartInstanceBody, definition: Any) -> str:
 
 @router.post("/instances")
 async def start_instance(body: StartInstanceBody, request: Request) -> dict:
-    """启动工作流实例：解析 YAML → 编译 → 异步调度 → 返回 instance_id。"""
-    if not body.yaml_text:
-        raise HTTPException(status_code=422, detail="请提供 yaml_text（工作流 YAML 文本）")
+    """启动工作流实例：解析 YAML → 编译 → 异步调度 → 返回 instance_id。
+
+    执行入口双轨（B11 定义版本与发布态，design D9）：
+      显式轨——yaml_text 权威（前端画布路径零变化；同传 definition_id
+      仅元数据，不参与解析）；
+      引用轨——无 yaml_text 时按 definition_id 仓储解析：显式
+      definition_version 精确取（不校验发布态——显式版本号即意图），
+      缺省取最新已发布版本（草稿不可上线；无已发布版本 422）。
+    """
+    if not body.yaml_text and not body.definition_id:
+        raise HTTPException(
+            status_code=422,
+            detail="请提供 yaml_text（工作流 YAML 文本）或 definition_id"
+            "（已保存定义标识；缺省解析其最新已发布版本）",
+        )
 
     instance_id = str(uuid.uuid4())
     trace_id = str(uuid.uuid4())
@@ -211,16 +223,53 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
         from orchestration_platform.workflow.yaml_workflow_parser import YamlWorkflowParser
         from orchestration_platform.engine.graph_compiler import GraphCompiler
 
-        definition = YamlWorkflowParser().parse(body.yaml_text)
+        # 执行入口双轨解析（B11 design D9）：显式轨 yaml_text 权威；
+        # 引用轨仓储解析（显式版本精确取 / 缺省最新已发布版本）。
+        if body.yaml_text:
+            definition = YamlWorkflowParser().parse(body.yaml_text)
+        else:
+            from orchestration_platform.persistence.repository_factory import (
+                RepositoryFactory,
+            )
+
+            workflow_repo = RepositoryFactory.create_workflow_repository()
+            if body.definition_version is not None:
+                definition = await workflow_repo.get(
+                    body.definition_id, body.definition_version
+                )
+            else:
+                definition = await workflow_repo.get_published(
+                    body.definition_id
+                )
+                if definition is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"工作流定义 {body.definition_id} 尚无已发布版本，"
+                        "无法启动实例（引用轨缺省解析最新已发布版本；"
+                        "可显式指定 definition_version 启动任意既有版本）",
+                    )
         compiled = await GraphCompiler(
             settings=build_engine_settings()
         ).compile(definition)
         # 恢复上下文缓存（arch_review_v2 3.4，CHG-07）：编译产物与 trace 落注册表
         rt.compiled = compiled
         rt.trace_id = trace_id
+        # 版本追溯通道（B11 design D9）：rt 随行编译产物版本（引用轨 =
+        # 仓储解析版本；yaml_text 轨 = YAML definition_version），
+        # GET /instances/{id} 注册表路径随行读出
+        rt.definition_version = (
+            getattr(compiled, "definition_version", None)
+            or definition.definition_version
+            or body.definition_version
+        )
     except HTTPException:
         _instance_registry.remove(instance_id)
         raise
+    except ResourceNotFoundError as exc:
+        # 引用轨显式版本不存在（B11 design D9）：404（与通用 422 严格
+        # 区分——定义缺失 vs 解析/编译失败）
+        _instance_registry.remove(instance_id)
+        raise HTTPException(status_code=404, detail=exc.to_dict())
     except Exception as exc:
         _instance_registry.remove(instance_id)
         raise HTTPException(status_code=422, detail=f"工作流解析/编译失败: {str(exc)}")
@@ -322,6 +371,10 @@ async def get_instance(instance_id: str) -> dict:
         "status": rt.status,
         "started_at": rt.started_at,
     }
+    # 版本追溯（B11 design D9）：注册表路径随行版本（worker 读穿透路径
+    # 经 read_instance_snapshot 从事件载荷提取，双路径同键）
+    if rt.definition_version is not None:
+        result["definition_version"] = rt.definition_version
     if rt.finished_at:
         result["finished_at"] = rt.finished_at
     return result

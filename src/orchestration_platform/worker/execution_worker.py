@@ -217,12 +217,16 @@ async def run_claimed_job(
         settings=build_engine_settings()
     ).compile(definition)
 
-    # 2. 注册表登记（worker 本地 + 事件仓储双写）
+    # 2. 注册表登记（worker 本地 + 事件仓储双写）；definition_version
+    #    沿作业版本（yaml_text 轨提交时为编译产物版本）——版本追溯通道
+    #    （B11 design D9），旧作业缺省回退编译产物版本
     registry.register(
         InstanceRuntime(
             instance_id=job.instance_id,
             definition_id=job.definition_id,
             tenant_id=job.tenant_id,
+            definition_version=job.definition_version
+            or getattr(compiled, "definition_version", None),
         )
     )
 

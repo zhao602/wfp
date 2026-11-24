@@ -40,10 +40,20 @@ class ExecutionInstance(BaseModel):
 
 
 class DefinitionRef(BaseModel):
-    """工作流定义引用：保存后返回的标识 + 版本。"""
+    """工作流定义引用：保存后返回的标识 + 版本。
+
+    B11 扩展：status/published_at 可选富化字段（default None——既有
+    构造点与 JSON 消费零破坏；发布/版本列表端点填充）。
+    """
 
     definition_id: str = Field(description="定义标识")
     definition_version: int = Field(description="定义版本号")
+    status: Optional[str] = Field(
+        default=None, description="发布状态（draft/published；None=未富化）"
+    )
+    published_at: Optional[datetime] = Field(
+        default=None, description="发布时刻（None=未富化或未发布）"
+    )
     created_at: datetime = Field(default_factory=_utc_now, description="创建时间")
 
 

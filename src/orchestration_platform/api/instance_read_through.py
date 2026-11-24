@@ -205,7 +205,9 @@ async def read_instance_snapshot(
     取消事件使 GET 立即可见终态）/ STATUS_CHANGED→payload.to_status
     （M5 决策可见性——review reject/timeout 经决策留痕事件立即可见）；
     definition_id 取 INSTANCE_QUEUED/STARTED/CANCELLED 载荷富化值
-    （local_file 后端可靠；PG 读侧 payload 已于 M5 T2 修复）。
+    （local_file 后端可靠；PG 读侧 payload 已于 M5 T2 修复）；
+    definition_version 取 QUEUED/STARTED 载荷（B11 版本追溯，非 None 才
+    随行——与注册表路径条件键同构）。
     """
     repo = event_repository if event_repository is not None else _get_event_repository()
     if repo is None:
@@ -226,6 +228,9 @@ async def read_instance_snapshot(
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     definition_id = ""
+    # 版本追溯（B11 design D9）：QUEUED/STARTED 载荷提取 definition_version
+    # （双载体任一；缺省 None 键存在——快照消费方恒可读键）
+    definition_version: Optional[int] = None
     for event in events:
         if event.event_type == EventType.INSTANCE_QUEUED:
             # M5 可见窗（design D5）：提交即落队列事件——窗口期推导 pending
@@ -235,6 +240,10 @@ async def read_instance_snapshot(
                 definition_id = str(
                     (event.payload or {}).get("definition_id", "") or ""
                 )
+            if definition_version is None:
+                raw_version = (event.payload or {}).get("definition_version")
+                if raw_version is not None:
+                    definition_version = int(raw_version)
         elif event.event_type == EventType.INSTANCE_STARTED:
             status = "running"
             if started_at is None:
@@ -246,6 +255,10 @@ async def read_instance_snapshot(
                 definition_id = str(
                     (event.payload or {}).get("definition_id", "") or ""
                 )
+            if definition_version is None:
+                raw_version = (event.payload or {}).get("definition_version")
+                if raw_version is not None:
+                    definition_version = int(raw_version)
         elif event.event_type == EventType.STATUS_CHANGED:
             # M5 决策可见性（design D7）：review 决策留痕事件（服务
             # submit_decision 落账）——to_status 推导快照状态；approve →
@@ -296,6 +309,10 @@ async def read_instance_snapshot(
         "status": status,
         "started_at": started_at,
     }
+    # B11 版本追溯：非 None 才随行（与注册表路径 definition_version 条件键
+    # 同构——既有快照精确等价契约零破坏）
+    if definition_version is not None:
+        result["definition_version"] = definition_version
     if finished_at is not None:
         result["finished_at"] = finished_at
     return result

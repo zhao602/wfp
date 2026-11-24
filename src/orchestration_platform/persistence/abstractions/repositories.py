@@ -28,6 +28,9 @@ class IWorkflowRepository(Protocol):
 
         返回 DefinitionRef（标识 + 版本 + 创建时间）。
         同一版本重复保存时覆盖（幂等）。
+        B11 发布态不可变守卫：目标版本已为 published 时抛
+        InstanceStateConflictError(WF_STATE_CONFLICT)（仓储写边界强制，
+        双后端一致；API 保存路径每次分配新版本号，结构性不触发）。
         """
         ...
 
@@ -42,6 +45,35 @@ class IWorkflowRepository(Protocol):
 
     async def list_versions(self, definition_id: str) -> List[DefinitionRef]:
         """列出指定定义的全部历史版本，按版本号降序排列。"""
+        ...
+
+    async def get_latest_version(self, definition_id: str) -> Optional[int]:
+        """查询指定定义的当前最大版本号（B11 版本递增依据）。
+
+        定义不存在时返回 None（与 get 缺省版抛 404 语义区分——
+        版本分配场景「无历史」合法，调用方以 (result or 0) + 1 起版）。
+        """
+        ...
+
+    async def get_published(
+        self, definition_id: str
+    ) -> Optional[WorkflowDefinition]:
+        """查询指定定义的最新已发布（published）版本（B11）。
+
+        无已发布版本返回 None（执行入口缺省解析口径：无 published 不可上线）；
+        语义与 get 缺省「最新版本」严格区分——get 含 draft，本方法仅 published。
+        """
+        ...
+
+    async def publish(
+        self, definition_id: str, version: int
+    ) -> DefinitionRef:
+        """将指定版本置为发布态（B11：draft → published 状态迁移）。
+
+        目标版本不存在抛 ResourceNotFoundError(WF_NOT_FOUND)；
+        已是 published 幂等返回（重复发布非改写，不 409）；
+        迁移后 status=published、published_at=now（draft_of 留存为溯源）。
+        """
         ...
 
 

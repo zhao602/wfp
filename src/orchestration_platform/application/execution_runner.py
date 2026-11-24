@@ -82,12 +82,17 @@ class InstanceRuntime:
         definition_id: str,
         tenant_id: Optional[str] = None,
         business_category: Optional[str] = None,
+        definition_version: Optional[int] = None,
     ):
         self.instance_id: str = instance_id
         self.definition_id: str = definition_id
         # 租户/业务类别通道（T7.2，可选字段，既有构造调用不受影响）
         self.tenant_id: Optional[str] = tenant_id
         self.business_category: Optional[str] = business_category
+        # 定义版本追溯通道（B11 定义版本与发布态，design D9）：编译产物
+        # 版本号（yaml_text 轨 = YAML definition_version；引用轨 = 仓储解析
+        # 版本）；GET /instances/{id} 双路径随行；None = 既有构造未携带
+        self.definition_version: Optional[int] = definition_version
         self.status: str = "pending"
         self.started_at: str = datetime.now(timezone.utc).isoformat()
         self.finished_at: Optional[str] = None
@@ -701,6 +706,9 @@ async def run_and_record(
                     exc_info=True,
                 )
 
+        # B11 版本追溯说明：INSTANCE_STARTED 载荷维持 {}（INV-08 三态事件
+        # 载荷不变契约，test_run_log_wiring 冻结）；worker 模式版本随行由
+        # 提交侧 INSTANCE_QUEUED 载荷单载体承载（submit 内落值）
         registry.append_event(instance_id, {
             "event_id": str(uuid.uuid4()),
             "instance_id": instance_id,
@@ -1121,6 +1129,7 @@ class ExecutionSubmitter:
                             sequence=0,
                             payload={
                                 "definition_id": job.definition_id,
+                                "definition_version": job.definition_version,
                                 "tenant_id": job.tenant_id or "",
                                 "trace_id": trace_id,
                             },

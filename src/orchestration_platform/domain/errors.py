@@ -22,6 +22,7 @@ WF_DEFINITION_TOO_LARGE = "WF_DEFINITION_TOO_LARGE"      # 定义节点数超限
 WF_CYCLIC_GRAPH = "WF_CYCLIC_GRAPH"                      # 拓扑存在非法环
 WF_VALIDATION_FAILED = "WF_VALIDATION_FAILED"            # 校验未通过（聚合报告）
 WF_NOT_FOUND = "WF_NOT_FOUND"                            # 工作流定义不存在
+WF_STATE_CONFLICT = "WF_STATE_CONFLICT"                  # 发布态版本被改写（409；B11 发布态不可变守卫）
 WF_NODE_EXECUTION_FAILED = "WF_NODE_EXECUTION_FAILED"    # 节点执行失败
 WF_LOOP_NOT_CONVERGED = "WF_LOOP_NOT_CONVERGED"          # 循环未收敛（达最大迭代）
 WF_PARALLEL_BRANCH_FAILED = "WF_PARALLEL_BRANCH_FAILED"  # 并行分支失败

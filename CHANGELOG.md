@@ -85,6 +85,51 @@
   缺 business_category 透传；worker POST 响应硬编码
   `"status": "running"`。
 
+### M6 定义版本与发布态（B11/F3）
+
+- **域模型发布态**：`WorkflowDefinition` +`status`(draft|published)/
+  `draft_of`/`published_at`（旧 JSON 缺字段默认 draft，兼容加载）；
+  `DefinitionRef` 同步富化字段；`WF_STATE_CONFLICT` 复用 409 通道。
+- **仓储发布态协议**：`IWorkflowRepository`
+  +`get_latest_version`/`get_published`/`publish` 三方法；
+  `save` 写边界 409 守卫——发布态版本改写抛
+  `InstanceStateConflictError(WF_STATE_CONFLICT)`（local_file 与 PG
+  双实现；PG 单语句 `ON CONFLICT ... DO UPDATE ... WHERE
+  status <> 'published' RETURNING status`）。
+- **v1_10 迁移配对**：`v1_10_workflow_publish_state.sql`（三列 +
+  索引 + 迁移登记，幂等守卫）+ `v1_10_rollback.sql` 回滚配对；
+  `table_definitions.sql` 同步；迁移 README 清单补 v1_9/v1_10 行。
+- **定义管理六端点**（`workflow_definition_router.py` 全重写）：
+  `POST /workflows` 真落库（版本=(最新或 0)+1、draft、
+  draft_of=已发布版本、YAML 版本号服务端覆盖）；`POST
+  /workflows/{id}/publish`（缺省最新、幂等 200）；`GET
+  /workflows/{id}?version=`（event-loop hack 清理，直接 await）；
+  `GET /workflows/{id}/versions`（状态富化降序裸数组）；`POST
+  /workflows/{id}/rollback` **发布回滚语义**——旧内容发新版本号
+  （深拷贝 + published + draft_of=目标版本，历史线性不可变）。
+- **执行双轨**（`start_instance`）：`yaml_text` 内联轨权威不变；
+  `definition_id` 引用轨——显式 `definition_version` 精确取版、
+  缺省取 `get_published`（无已发布版本 422、未知 404，严格分流）；
+  双空提交 422 双轨提示。
+- **版本追溯链**：`InstanceRuntime` +`definition_version`（构造可选
+  参数，worker 作业传递）；提交侧 `INSTANCE_QUEUED` 载荷
+  +`definition_version`（单载体——`INSTANCE_STARTED` 载荷维持 `{}`
+  保 INV-08 三态事件载荷不变契约）；读穿透快照
+  `read_instance_snapshot` 从事件载荷提取；`GET /instances/{id}`
+  双路径条件键随行（非 None 才带）。
+- **既有测试零修改**：全量 4 失败经自增代码回退修正（STARTED 载荷
+  回归 `{}`、快照改条件键），既有测试文件零改动；新增测试 4 文件
+  61 例（publish_state 18 / publish_migration 15 /
+  definition_endpoints 18 / execution_definition_ref 10）。
+- **门禁基线（本批实测）**：全量 pytest **3796 passed + 3 skipped
+  exit 0**（worktree 隔离 HEAD `74a64d2` + 本批 19 文件，防并行批
+  在途污染；3735+61 精确闭合，点符 + collect-only 三角核定）；
+  vitest 1010+13（零 web 触碰）；typecheck 0 error 实测（基线
+  档案 13 沿 M3 口径，零新增）；e2e 6/6（17.7s，worktree 隔离）；
+  四基准匹配态声明论证（热路径 diff 仅实例级 O(1) 两处，基线沿用）；
+  ruff 16 自增文件零违规；**版本维持 0.3.0**（用户裁决，统一升位
+  递延）。
+
 ---
 
 ## [0.3.0] - 2026-11-23

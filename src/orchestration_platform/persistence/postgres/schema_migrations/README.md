@@ -23,6 +23,8 @@
 | 6 | `v1_6_tenant_hardening.sql` | 1.6 | 多租户强隔离第一段：8 张可空表 backfill + `SET NOT NULL`（roadmap B1） | `v1_6_rollback.sql` |
 | 7 | `v1_7_enable_rls.sql` | 1.7 | 多租户强隔离第二段：21 表 + 3 分区 RLS 策略三件套（roadmap B1） | `v1_7_rollback.sql` |
 | 8 | `v1_8_execution_queue.sql` | 1.8 | 执行队列表 `execution_job`（租约/心跳字段 + 幂等键部分唯一索引 + 认领/接管扫描部分索引，roadmap M1） | `v1_8_execution_queue_rollback.sql` |
+| 9 | `v1_9_job_cancel_requested.sql` | 1.9 | 作业取消标志：`execution_job.cancel_requested` + 实例活跃作业索引（M3 实例级取消，跨进程传播载体） | `v1_9_rollback.sql` |
+| 10 | `v1_10_workflow_publish_state.sql` | 1.10 | 工作流定义发布态：`status`/`draft_of`/`published_at` 三列 + 状态索引（B11 定义版本与发布态，发布态不可变守卫；既有行回填 `'draft'`） | `v1_10_rollback.sql` |
 
 ## 执行方式
 

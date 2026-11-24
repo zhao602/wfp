@@ -8,13 +8,18 @@
 --   3. 事件序号与检查点位点在同一事务内一致。
 -- =============================================================================
 
--- 工作流定义表：版本化存储
+-- 工作流定义表：版本化存储（B11：+ 发布状态机三列 status/draft_of/published_at，
+-- 与 schema_migrations/v1_10_workflow_publish_state.sql 同步维护——新库直建全量，
+-- 存量库走迁移）
 CREATE TABLE IF NOT EXISTS workflow_definition (
     definition_id       VARCHAR(255)   NOT NULL,
     definition_version  INTEGER        NOT NULL DEFAULT 1,
     name                VARCHAR(100)   NOT NULL,
     spec_version        VARCHAR(50)    NOT NULL,
     definition_body     JSONB          NOT NULL,
+    status              VARCHAR(20)    NOT NULL DEFAULT 'draft',
+    draft_of            INTEGER,
+    published_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
     schema_version      INTEGER        NOT NULL DEFAULT 1,
@@ -23,6 +28,9 @@ CREATE TABLE IF NOT EXISTS workflow_definition (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_definition_id
     ON workflow_definition (definition_id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_definition_status
+    ON workflow_definition (definition_id, status);
 
 -- 执行实例表
 CREATE TABLE IF NOT EXISTS execution_instance (

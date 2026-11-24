@@ -9,7 +9,7 @@
 # =============================================================================
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,11 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# 定义发布状态常量（B11 定义版本与发布态；自由字符串，与作业状态常量风格一致）
+DEFINITION_STATUS_DRAFT = "draft"
+DEFINITION_STATUS_PUBLISHED = "published"
+
+
 class WorkflowDefinition(BaseModel):
     """工作流定义（对应需求规格 6.1）。"""
 
@@ -35,6 +40,21 @@ class WorkflowDefinition(BaseModel):
     edges: List[EdgeDefinition] = Field(default_factory=list, description="连线列表（可为空）")
     inputs: List[InputParameter] = Field(default_factory=list, description="输入参数定义")
     outputs: List[OutputDeclaration] = Field(default_factory=list, description="输出定义")
+    # 发布状态机（B11 定义版本与发布态）：draft（可改写，同号幂等覆盖）/
+    # published（发布态不可变——被 save 改写 → WF_STATE_CONFLICT/409）；
+    # 旧数据缺字段默认 draft（与 v1_10 迁移 DEFAULT 'draft' 口径一致）
+    status: Literal["draft", "published"] = Field(
+        default=DEFINITION_STATUS_DRAFT,
+        description="发布状态（draft=草稿可改写；published=发布态不可变）",
+    )
+    draft_of: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="本版本基于的已发布版本号（保存时指向最新 published；发布回滚时承载 to_version 溯源）",
+    )
+    published_at: Optional[datetime] = Field(
+        default=None, description="发布时刻（draft 态为 None）"
+    )
     created_at: datetime = Field(default_factory=_utc_now, description="创建时间")
     updated_at: datetime = Field(default_factory=_utc_now, description="更新时间")
 

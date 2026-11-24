@@ -108,6 +108,7 @@ S2(SSO 闭环, 5–8 或 0.5 人日) —— 可插小批，建议 B15 前
 - **锚点**：`workflow_definition_router.py`（现仅 validate/save，无持久化）；执行入口 YAML 内联（`execution_instance_router.py:332`）；domain 已有 `definition_version` 字段可承接。
 - **出口验收**：发布态改写返回 409；实例可追溯执行版本号；回滚 drill 留档；**老路径（yaml_text 内联提交）保持兼容**——既有测试零修改为理想，必须改锚点时在 spec 登记。
 - **风险**：schema 迁移与旧画布状态兼容；执行入口双轨期口径。
+- **进度（2026-11-24）**：B11 收口（见 `roadmap_m6_definition_versioning` exit-record：域模型三字段 + 仓储三方法 local/PG 双实现 + v1_10 迁移/rollback 配对 + 定义管理六端点（POST /workflows 落库版本递增 draft / publish 幂等 / versions / **发布回滚**=旧内容新号 published、历史线性不可变）+ 执行双轨（yaml_text 权威、引用轨 get_published 缺省/显式版本精确取）+ 版本追溯链（InstanceRuntime/QUEUED 载荷单载体/快照条件键/GET 双路径）——既有测试零修改达成（全量 4 失败经自增回退修正）；全门禁绿——pytest 3796+3（worktree 隔离防并行批污染，3735+61 精确闭合）/ vitest 1010+13 / typecheck 零新增 / e2e 6/6 / 四基准匹配态声明论证（热路径仅实例级 O(1) 两处）/ ruff 自增零违规；版本维持 0.3.0（升位递延）；F5「订阅按版本生效」依赖已就绪）。
 
 ### B12 数据分块批（P3 核心）— 8–10 人日
 
