@@ -15,7 +15,7 @@
 // =============================================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import type { ToolCatalogItem } from "../../api/orchestrationApiClient";
 
 // listTools mock：vi.hoisted 保证工厂引用在模块求值前完成初始化；

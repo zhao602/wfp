@@ -152,7 +152,7 @@ describe("旧 YAML 含 tool 节点兼容放行（fix_agent_null_length tasks 5.5
     const toolNode = result.canvasState.nodes.find((node) => node.id === "tool_1");
     expect(toolNode).toBeDefined();
     expect(toolNode!.data.node_type).toBe("tool");
-    const configuration = toolNode!.data.configuration as Record<string, unknown>;
+    const configuration = toolNode!.data.configuration as unknown as Record<string, unknown>;
     expect(configuration["tool_identifier"]).toBe("report_builder");
     expect(configuration["tool_source"]).toBe("local");
   });

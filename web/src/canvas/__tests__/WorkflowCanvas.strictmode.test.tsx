@@ -18,9 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StrictMode } from "react";
 import { render } from "@testing-library/react";
-// @ts-expect-error DEBT-T01: tsconfig types 白名单不含 node，node:fs 无类型解析（TC-SM-03 静态源码断言必需，详见 frontend_debt_cleanup/ledger.md）
 import { readFileSync } from "node:fs";
-// @ts-expect-error DEBT-T02: tsconfig types 白名单不含 node，node:url 无类型解析（TC-SM-03 静态源码断言必需，详见 frontend_debt_cleanup/ledger.md）
 import { fileURLToPath } from "node:url";
 import type { EdgeChange, ReactFlowInstance } from "reactflow";
 import type { SetStateAction } from "react";

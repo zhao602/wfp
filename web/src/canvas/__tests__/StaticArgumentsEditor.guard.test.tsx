@@ -20,6 +20,7 @@ describe("L-15 StaticArgumentsEditor value 运行时宽容归一（fix_agent_nul
       <StaticArgumentsEditor
         value={null as unknown as Record<string, unknown>}
         onChange={vi.fn()}
+        keyLabel="参数名"
       />,
     );
     expect(screen.getByText("暂无静态参数")).toBeTruthy();
@@ -31,6 +32,7 @@ describe("L-15 StaticArgumentsEditor value 运行时宽容归一（fix_agent_nul
       <StaticArgumentsEditor
         value={undefined as unknown as Record<string, unknown>}
         onChange={vi.fn()}
+        keyLabel="参数名"
       />,
     );
     expect(screen.getByText("暂无静态参数")).toBeTruthy();
@@ -42,6 +44,7 @@ describe("L-15 StaticArgumentsEditor value 运行时宽容归一（fix_agent_nul
       <StaticArgumentsEditor
         value={{ top_n: 5 }}
         onChange={vi.fn()}
+        keyLabel="参数名"
       />,
     );
     expect(container.querySelectorAll(".wfp-sae-row").length).toBe(1);

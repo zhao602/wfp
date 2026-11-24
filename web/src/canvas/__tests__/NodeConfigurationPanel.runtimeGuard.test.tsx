@@ -107,7 +107,7 @@ describe("L-09 dynamic_injector node_templates 面板渲染守卫（fix_agent_nu
       btn.textContent?.includes("+ 新增模板"),
     ) as HTMLButtonElement | undefined;
     expect(addButton).toBeTruthy();
-    expect(addButton.disabled).toBe(false);
+    expect(addButton!.disabled).toBe(false);
   });
 
   it("L-09-b node_templates 键缺失（undefined）：同口径安全渲染", () => {

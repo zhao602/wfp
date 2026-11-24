@@ -187,7 +187,7 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
     // 超时：内部 AbortController 与调用方 signal 联动；未配置超时则直接透传调用方 signal
     let controller: AbortController | undefined;
     let timedOut = false;
-    let timer: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (timeoutMs !== undefined) {
       controller = new AbortController();
       timer = setTimeout(() => {

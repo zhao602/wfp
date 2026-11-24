@@ -36,7 +36,7 @@ function makeNode(
     data: {
       node_id: nodeId,
       name: `节点-${nodeId}`,
-      node_type: nodeType as CanvasNode["type"],
+      node_type: nodeType as CanvasNode["data"]["node_type"],
       configuration,
     },
   };
