@@ -9,8 +9,9 @@
 #   3. http_llm_client.infer：OpenAI 兼容响应体顶层 usage 提取（缺省 None）；
 #   4. record_node_usage：真实 token 数、tenant 兜底 log_tenant_default、
 #      异形条目归一化、enabled=False no-op；
-#   5. scheduler 成功路径钩子：metadata 有 token_usage 时记账行真实值；
-#      metering 未装配（recorder=None）静默跳过。
+#   5. scheduler 成功路径钩子：metadata 有 token_usage 时记账行真实值
+#      （M4 B10：usage_recorder 经 Scheduler ctor 注入，引擎不读 governance
+#      全局）；metering 未装配（注入 None）静默跳过。
 # =============================================================================
 
 from datetime import datetime, timezone
@@ -329,8 +330,11 @@ class TestSchedulerNodeUsageHook:
 
     async def test_success_path_records_node_usage(self):
         repo = _RepoSpy()
-        set_usage_recorder(ExecutionUsageRecorder(repo, enabled=True))
-        scheduler = Scheduler(NodeExecutorRegistry())
+        # M4 B10 迁移：scheduler 计量改 ctor 注入（引擎不读 governance 全局）
+        scheduler = Scheduler(
+            NodeExecutorRegistry(),
+            usage_recorder=ExecutionUsageRecorder(repo, enabled=True),
+        )
 
         async def _fake_execute_node(node, state_manager, iid, tid, ri, compiled):
             now = datetime.now(timezone.utc)

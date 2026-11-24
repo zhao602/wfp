@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.enums import IntentType
 from orchestration_platform.governance.nl_orchestration.models import NLOrchestrationResult
@@ -105,7 +106,7 @@ def _get_nl_service():
         yaml_generator=YamlGenerator(),
         workflow_modifier=WorkflowModifier(),
         injection_guard=InjectionGuard(),
-        graph_compiler=GraphCompiler(),
+        graph_compiler=GraphCompiler(settings=build_engine_settings()),
         yaml_parser=YamlWorkflowParser(),
     )
     return _nl_service

@@ -160,19 +160,30 @@ worker 服务空转（认领不到作业），历史行为不变。
 - **诚实口径**：本语义为 at-least-once（接管重放单节点可能重复执行一次），
   非 exactly-once；业务节点需自带幂等。
 
-### 10.3 读穿透与 M3 已知边界
+### 10.3 读穿透与已知边界
 
 worker 模式实例不在 api 进程内存注册表，api 侧按以下口径回读：
 
 | 能力 | 口径 |
 | --- | --- |
-| `GET /instances/{id}`、SSE `/events/stream` | 注册表未命中 → 事件仓储回读（worker 双写落账）；实例自 worker 认领写首事件起可见（提交→认领窗口内 404，轮询间隔默认 1s） |
+| `GET /instances/{id}`、SSE `/events/stream` | 注册表未命中 → 事件仓储回读（worker 双写落账）；**M5 可见窗**：提交即落 `INSTANCE_QUEUED` 事件，提交→认领窗口期推导 **pending**（不再 404，轮询间隔默认 1s） |
 | `/cancel` | **M3 已支持 worker 模式**（读穿透三态，见 10.4） |
-| `/results`、`/events` 列表、`/recover`、`/review` | 注册表口径，worker 模式实例未注册 → 404（M3 边界，欠账登记 M4+ 适配） |
+| `/events` 列表 | **M5 已支持**：注册表未命中 → 统一读取器回读事件仓储（归一化形态与注册表一致：`NODE_SUCCEEDED`→`NODE_COMPLETED`、payload dict） |
+| `/results` | **M5 已支持**：事件推导快照——非终态 `outputs: null`（轮询友好）；succeeded 输出取检查点快照 `node_outputs`（INV-08 唯一权威输出存储；检查点仓储不可达/无快照回退 `{}`）；其余终态 `{}`；`finished_at` 取快照留痕时刻 |
+| `/recover` | **M5 已支持**：快照守卫 + 检查点续跑作业入队（幂等键 `{instance_id}:recover:{checkpoint_id}`、`trigger_source=recover`、origin 作业载荷 yaml/版本/租户/trace 补齐）。守卫：running → 409 仍在运行；**waiting_review → 409 请提交审核决策、review_timeout → 409（安全优先有意分歧——in_process 可重挂起/门续跑，worker 无法代持注册表挂起态，且从门检查点续跑 = 绕过已留痕审核决策）**；pending 窗口无检查点 → 500「无可用检查点」（从未运行的如实口径）；执行队列/检查点仓储不可用 → 500 |
+| `/review` | **M5 已支持**：快照守卫（非 waiting_review → 409 `INSTANCE_NOT_WAITING_REVIEW` 同文案）+ 编译重建（origin 作业 yaml 优先，工作流仓储 (definition_id, version) 回退）+ `ReviewDecisionService` 复用（决策留痕/终态映射零重复实现）。approve → 服务留痕 `STATUS_CHANGED(running)` 后入队续跑作业（幂等键 `:review-resume:` 前缀、`trigger_source=review_resume`；approve 前置队列可用性检查，防「running 但无续跑作业」悬挂态）；reject → `cancelled`（`review_timeout_action=wait` → `failed`）；timeout_action → `review_timeout` |
+| `/checkpoints`、`/rollback`、`/replay` | **注册表口径**（worker 模式实例未注册 → 404；W5–7 桩现状冻结，Z-4），M5 未适配 |
 
-postgres 后端事件读侧 payload 既有丢失（`_row_to_event`），状态推导依赖
-event_type 枚举不受影响；快照 `definition_id` 字段在 postgres 后端可能为空串
-（local_file 后端完整）。
+**配额 worker 口径（M5）**：worker 模式并发配额计数走队列落库口径
+（`count_active_by_tenant`：pending/running 作业数，local/postgres 双后端）；
+count→check→enqueue 跨 await 存在准入竞态（best-effort 诚实口径，与
+in_process 窗口同类）；队列不可达降级注册表计数（worker 模式注册表恒空
+≈ 0，配额近似旁路——告警可见）。
+
+postgres 后端事件读侧 payload 丢失已于 M5 修复（`_decode_stored_event_payload`：
+asyncpg 未配置 JSONB codec 时 payload 列为全量事件 dump 字符串，解内层
+payload 键）；作业 `initial_inputs` JSONB 读侧同步修复（`_decode_jsonb_dict`）。
+快照 `definition_id` 两后端一致。
 
 ### 10.4 实例取消与超时语义（M3）
 
@@ -199,10 +210,13 @@ event_type 枚举不受影响；快照 `definition_id` 字段在 postgres 后端
   cancelled）+ 失败码 `WF_INSTANCE_TIMEOUT`（载荷含 `timeout_seconds`），
   作业照常 complete。
 
-**租约调整注意事项（D9 已知项）**：
+**租约调整注意事项（D9，M5 已收口）**：
 
-- 队列 `heartbeat()` 续租时长取 `EXECUTION_QUEUE_LEASE_SECONDS` 环境默认，
-  不接收 worker 构造参数——**生产调整租约请统一用
-  `EXECUTION_QUEUE_LEASE_SECONDS` 环境变量**（claim/take_over/heartbeat
-  全链一致）；只调 worker 构造参数会被心跳续租覆盖回默认值，导致接管
-  时延不符预期。
+- `IExecutionQueue.heartbeat()` 增可选 `lease_ttl_seconds` 参——
+  worker 心跳按自身租约续传（claim/take_over/heartbeat 全链 TTL
+  一致传递），**不再被心跳覆盖回队列全局默认**。
+- **生产调整租约**：优先调 worker 构造参数或
+  `EXECUTION_QUEUE_LEASE_SECONDS` 环境变量（全链一致缺省）。
+- **旧签名兼容**：未升级的队列实现（双参 `heartbeat`）仍可运行——
+  worker 构造期一次签名探测决定调用形态，协议演进不破坏既有部署
+  （探测含 `**kwargs` 型实现）。

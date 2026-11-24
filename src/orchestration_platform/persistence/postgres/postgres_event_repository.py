@@ -11,13 +11,41 @@
 #      会话变量（不覆盖调用方已注入的租户上下文）。
 # =============================================================================
 
-from typing import List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 from orchestration_platform.domain.errors import WF_VALIDATION_FAILED, DomainError
 from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.persistence.postgres.tenant_scoped_base import (
     TenantScopedPostgresRepository,
 )
+
+
+def _decode_stored_event_payload(raw: object) -> Dict[str, Any]:
+    """解出事件载荷（M5 T2：PG 读侧 payload 丢失修复）。
+
+    payload JSONB 列由 _append_in_connection 写入 event.model_dump_json()
+    全量事件 dump（唯一写入点）；asyncpg 未配置 JSONB codec 时返回 str，
+    需 json.loads 后取内层 payload 键（历史读侧直接 payload={} 丢失）。
+    解码失败/形态异常回退 {}（事件类型枚举载体两后端始终可靠，M2 design
+    D2 降级口径不变）。纯函数便于无 PG 环境单测（静态门禁先例）。
+    """
+    if raw is None:
+        return {}
+    try:
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+        if isinstance(raw, dict):
+            # 全量 dump 形态：真实载荷在内层 payload 键
+            inner = raw.get("payload")
+            if isinstance(inner, dict):
+                return dict(inner)
+            # 容错非全量形态（列直接存载荷 dict 且无外层键）
+            if "payload" not in raw and raw:
+                return dict(raw)
+    except Exception:
+        pass
+    return {}
 
 
 class PostgresEventRepository(TenantScopedPostgresRepository):
@@ -118,5 +146,6 @@ class PostgresEventRepository(TenantScopedPostgresRepository):
             event_id=row["event_id"], instance_id=row["instance_id"],
             event_type=EventType(row["event_type"]), node_id=row["node_id"],
             sequence=row["sequence"],
-            payload={}, voided=row["voided"], occurred_at=row["occurred_at"],
+            payload=_decode_stored_event_payload(row["payload"]),
+            voided=row["voided"], occurred_at=row["occurred_at"],
         )

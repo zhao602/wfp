@@ -4,6 +4,89 @@
 
 ---
 
+## [未发布]
+
+### M4 引擎解耦（B10/A1）
+
+- **EngineSettings 引擎类型化配置**：`engine/abstractions/engine_config.py`
+  （17 字段 frozen dataclass，默认逐一镜像 `Settings(_env_file=None)`，
+  parity 测试锁定）；引擎域 7 文件 `get_settings` 清除改构造注入
+  （scheduler / graph_compiler / langgraph_adapter / plugin_node_loader /
+  code / agent / llm 执行器）；`application/engine_wiring.py`
+  `build_engine_settings()` 为宿主（api/worker/cli）唯一装配点。
+- **NodeUsageRecorder 协议注入**：`engine/abstractions/node_usage_recorder.py`
+  Protocol + `Scheduler` 构造尾参注入——引擎域 `governance` 依赖清零
+  （未装配进程注入 None == 原跳过语义）。
+- **adapter api 依赖移除**：`LangGraphAdapter` 惰性 api 模块导入删除，
+  `executor_registry` 缺省改引擎内新建空 `NodeExecutorRegistry()`
+  （生产由 `application_factory` 显式注入容器注册表）；`settings`
+  构造注入生效 env 覆盖。
+- **IWorkflowEngine 死接口移除**：全仓零生产引用的
+  `engine/abstractions/workflow_engine.py` 删除 + 注释/文档清理
+  （技术债台账 C1 销项，44→43）。
+- **AST 导入门禁（CI 步）**：`scripts/check_engine_imports.py` +
+  `tests/unit/test_engine_import_isolation.py`（importlib 单一逻辑源）+
+  ci.yml backend job 插步 + `scripts/run_local_ci.py` 镜像——engine/
+  67 文件禁 6 前缀（api / configuration / governance / application /
+  worker / cli），零违规基线。
+- **54 开关全量矩阵**：`docs/switch-matrix.md`（默认 / 行号 / 类别 /
+  消费层 / 裁剪点 / 收敛位置；OEM 3 开关单列）+ md↔Settings 一致性
+  测试；新发现 6 个未接线开关登记（mcp_server_enabled /
+  scheduler_batch_mode / checkpoint_compression_enabled /
+  sandbox_network_default_deny / supervisor_orchestration_enabled /
+  data_transform_custom_code_enabled）。
+- **门禁基线（本批实测）**：全量 pytest **3735 passed + 3 skipped
+  exit 0**（+32 本批）；vitest 1010+13；typecheck 13 零新增；e2e 6/6；
+  四基准 A/B vs `4ead441` 匹配态零一致回归（linear +6.4% 双窗反向判
+  噪声 / parallel +4.6% / pipeline +0.4% / sse -2.8%；测量窗机器频率
+  节流同码 3.2x 对称，fast-state 复测欠账登记）；ruff（CI 口径）：
+  基线自身 ~5.4k 违规（CI 真实 ruff 从未绿——本地一直 py_compile 降级），
+  本批自增 8 文件零违规。
+
+### M5 worker 模式 API 补全
+
+- **M3 欠账四端点清偿（worker 读穿透）**：
+  - `/events` 列表：统一读取器回读事件仓储，归一化形态与注册表口径一致
+    （`NODE_SUCCEEDED`→`NODE_COMPLETED`、payload dict、`occurred_at`）。
+  - `/results`：事件推导快照——非终态 `outputs: null`（轮询友好）；
+    succeeded 输出取检查点快照 `node_outputs`（INV-08 唯一权威输出
+    存储，检查点仓储不可达回退 `{}`）；`finished_at` 取快照留痕时刻。
+  - `/recover`：快照守卫 + 检查点续跑作业入队（幂等键
+    `{instance_id}:recover:{checkpoint_id}`、`trigger_source=recover`、
+    origin 作业载荷 yaml/版本/租户/trace 补齐）；pending 窗口无检查点
+    → 500「无可用检查点」（从未运行的如实口径）。
+  - `/review`：快照守卫 + 编译重建（origin yaml 优先，工作流仓储
+    (definition_id, version) 回退）+ `ReviewDecisionService` 复用（决策
+    留痕/终态映射零重复实现）；approve 留痕 `STATUS_CHANGED(running)`
+    后入队续跑作业（`:review-resume:` 幂等键、前置队列可用性检查，
+    防「running 但无续跑作业」悬挂态）。
+- **可见窗消除**：worker 模式提交即落 `INSTANCE_QUEUED` 事件——
+  提交→认领窗口期 `GET /instances/{id}`、SSE 推导 **pending**（不再
+  404）；快照 `STATUS_CHANGED` 状态推导全分支 + 仓储读取器
+  `review_timeout` 终态扩展（审核 reject/timeout 决策立即可见）。
+- **配额 worker 落库口径**：worker 模式并发配额计数走
+  `count_active_by_tenant`（pending/running 作业数，local/postgres
+  双后端）；count→check→enqueue 跨 await 准入竞态为 best-effort
+  诚实口径；队列不可达降级注册表计数（≈ 0，配额近似旁路）。
+- **D9 心跳租约 TTL 收口**：`IExecutionQueue.heartbeat()` 增可选
+  `lease_ttl_seconds` 参——worker 心跳按自身租约续传（claim/take_over/
+  heartbeat 全链一致），不再覆盖回队列全局默认；旧双参签名实现兼容
+  （worker 构造期一次签名探测，含 `**kwargs` 型实现）。
+- **PG JSONB 读侧修复**：事件 `payload`（asyncpg 未配置 JSONB codec
+  时为全量事件 dump 字符串 → `_decode_stored_event_payload` 解内层）
+  与作业 `initial_inputs`（str 直接 `["key"]` 必崩 →
+  `_decode_jsonb_dict`）双修复；快照 `definition_id` 两后端一致。
+- **有意分歧（安全优先）**：worker 模式 `/recover` 对
+  waiting_review/review_timeout → 409——worker 无法代持注册表挂起态，
+  且从门检查点续跑 = 绕过已留痕审核决策（in_process 可重挂起分支
+  分歧入档，docs/deploy.md §10.3）。
+- **已知项**：`/checkpoints`、`/rollback`、`/replay` 维持注册表口径
+  （worker 模式 404）；worker 运行无 run_log_recorder；worker 重放
+  缺 business_category 透传；worker POST 响应硬编码
+  `"status": "running"`。
+
+---
+
 ## [0.3.0] - 2026-11-23
 
 > **版本覆盖说明**：本版本覆盖 M2（独立 worker 进程）与 M3（实例级取消与

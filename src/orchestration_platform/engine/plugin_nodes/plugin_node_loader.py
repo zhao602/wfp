@@ -19,7 +19,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     NODE_DEPENDENCY_MISSING,
     NODE_LIFECYCLE_ERROR,
@@ -27,6 +26,7 @@ from orchestration_platform.domain.errors import (
     NODE_PACKAGE_INVALID,
     DomainError,
 )
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.plugin_sdk.manifest_validator import (
     ManifestValidator,
 )
@@ -54,15 +54,19 @@ class PluginNodeLoader:
         self,
         manifest_validator: Optional[ManifestValidator] = None,
         package_validator: Optional[NodePackageValidator] = None,
+        settings: Optional[EngineSettings] = None,
     ) -> None:
         """构造加载器。
 
         参数：
             manifest_validator —— manifest 校验器（缺省自动创建）
             package_validator  —— 包规范校验器（缺省自动创建）
+            settings           —— 引擎运行配置（M4 B10：缺省 None →
+                                  EngineSettings() 默认值；宿主注入生效 env 覆盖）
         """
         self._manifest_validator = manifest_validator or ManifestValidator()
         self._package_validator = package_validator or NodePackageValidator()
+        self._settings = settings or EngineSettings()
         # 已安装节点注册表：node_name -> PluginNodeRegistration
         self._registrations: Dict[str, PluginNodeRegistration] = {}
         # 实例池：node_name -> PluginNodeBase 实例
@@ -88,7 +92,7 @@ class PluginNodeLoader:
             DomainError(NODE_DEPENDENCY_MISSING) —— 依赖缺失
             DomainError(NODE_LIFECYCLE_ERROR)    —— setup 失败
         """
-        settings = get_settings()
+        settings = self._settings
 
         # 降级形态：功能开关关闭时不加载任何节点包
         if not settings.plugin_sdk_enabled:

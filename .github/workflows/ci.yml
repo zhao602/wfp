@@ -3,6 +3,8 @@
 #
 # 目标（arch_review_v2_tasks 4.1 + 5.7，CHG-31；AC-03）：
 #   1. backend job：PYTHONPATH=src 显式设置下 ruff check + pytest -q；
+#      M4 B10 追加 engine/ 六前缀 import 隔离门禁步（design D5，AST 扫描
+#      scripts/check_engine_imports.py，Pytest 前插）；
 #   2. frontend job：web/ 下 npm ci + tsc --noEmit + vitest run；
 #   3. examples job：pip install -e . 后 wfp validate examples/（5.7 追加，
 #      15 YAML 全量校验 exit 0，AC-04；G8 产物就绪后合入）；
@@ -43,6 +45,12 @@ jobs:
         env:
           PYTHONPATH: src
         run: ruff check .
+
+      - name: Engine import isolation gate
+        # M4 B10 架构门禁（design D5）：engine/ 禁
+        # orchestration_platform.{api,configuration,governance,application,
+        # worker,cli} 六前缀；AST 扫描违规 exit 1（persistence 例外登记）。
+        run: python scripts/check_engine_imports.py
 
       - name: Pytest
         env:

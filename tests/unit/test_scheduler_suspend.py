@@ -22,6 +22,7 @@ from orchestration_platform.domain.errors import (
 )
 from orchestration_platform.domain.models.enums import NodeType
 from orchestration_platform.domain.models.shared_state import SharedState
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.graph_compiler import GraphCompiler
 from orchestration_platform.engine.node_executor_registry import NodeExecutorRegistry
 from orchestration_platform.engine.nodes.base import NodeExecutionResult
@@ -300,60 +301,61 @@ class TestSuspendConsumption:
             "control_flow_kind 非 human_review_gate 的 suspend 不消费（三重条件③）"
         )
 
-    async def test_guard_round_not_counted_on_suspend(self, tmp_path, monkeypatch):
-        """护栏轮次不计挂起：护栏开启下挂起信号先于步数护栏触发。"""
-        monkeypatch.setenv("WORKFLOW_STEP_GUARD_ENABLED", "true")
-        monkeypatch.setenv("WORKFLOW_MAX_STEPS", "2")
-        from orchestration_platform.configuration.settings import get_settings
+    async def test_guard_round_not_counted_on_suspend(self, tmp_path):
+        """护栏轮次不计挂起：护栏开启下挂起信号先于步数护栏触发。
 
-        get_settings.cache_clear()
-        try:
-            repo = LocalFileCheckpointRepository(storage_root=str(tmp_path))
-            registry = _build_gate_registry()
-            scheduler = Scheduler(
-                executor_registry=registry, checkpoint_repository=repo
+        M4 B10 改写（2026-11-23）：引擎经构造注入 EngineSettings（env 感知
+        移宿主侧 application.engine_wiring），测试直接注入护栏两字段。
+        """
+        engine_settings = EngineSettings(
+            workflow_step_guard_enabled=True, workflow_max_steps=2
+        )
+        repo = LocalFileCheckpointRepository(storage_root=str(tmp_path))
+        registry = _build_gate_registry()
+        scheduler = Scheduler(
+            executor_registry=registry,
+            checkpoint_repository=repo,
+            settings=engine_settings,
+        )
+        compiled = await _compile_gate_flow()
+
+        with pytest.raises(WorkflowSuspendedSignal):
+            await scheduler.execute(
+                compiled,
+                SharedState(instance_id="inst-guard", node_outputs={"topic": "t"}),
+                "inst-guard",
+                "trace-guard",
             )
-            compiled = await _compile_gate_flow()
 
-            with pytest.raises(WorkflowSuspendedSignal):
-                await scheduler.execute(
-                    compiled,
-                    SharedState(instance_id="inst-guard", node_outputs={"topic": "t"}),
-                    "inst-guard",
-                    "trace-guard",
-                )
-        finally:
-            get_settings.cache_clear()
+    async def test_guard_fires_when_not_suspended(self, tmp_path):
+        """对照组：未挂起时同一护栏配置在门后轮次触发（证明挂起分支确未计轮）。
 
-    async def test_guard_fires_when_not_suspended(self, tmp_path, monkeypatch):
-        """对照组：未挂起时同一护栏配置在门后轮次触发（证明挂起分支确未计轮）。"""
-        monkeypatch.setenv("WORKFLOW_STEP_GUARD_ENABLED", "true")
-        monkeypatch.setenv("WORKFLOW_MAX_STEPS", "2")
-        from orchestration_platform.configuration.settings import get_settings
+        M4 B10 改写（2026-11-23）：同上，护栏两字段经 EngineSettings 注入。
+        """
+        engine_settings = EngineSettings(
+            workflow_step_guard_enabled=True, workflow_max_steps=2
+        )
+        repo = LocalFileCheckpointRepository(storage_root=str(tmp_path))
+        registry = _build_stub_registry(
+            control_flow_metadata={"control_flow_kind": "human_review_gate"},
+        )
+        scheduler = Scheduler(
+            executor_registry=registry,
+            checkpoint_repository=repo,
+            settings=engine_settings,
+        )
+        compiled = await _compile_gate_flow()
 
-        get_settings.cache_clear()
-        try:
-            repo = LocalFileCheckpointRepository(storage_root=str(tmp_path))
-            registry = _build_stub_registry(
-                control_flow_metadata={"control_flow_kind": "human_review_gate"},
+        with pytest.raises(DomainError) as exc_info:
+            await scheduler.execute(
+                compiled,
+                SharedState(instance_id="inst-guard2", node_outputs={"topic": "t"}),
+                "inst-guard2",
+                "trace-guard2",
             )
-            scheduler = Scheduler(
-                executor_registry=registry, checkpoint_repository=repo
-            )
-            compiled = await _compile_gate_flow()
-
-            with pytest.raises(DomainError) as exc_info:
-                await scheduler.execute(
-                    compiled,
-                    SharedState(instance_id="inst-guard2", node_outputs={"topic": "t"}),
-                    "inst-guard2",
-                    "trace-guard2",
-                )
-            assert exc_info.value.code == WF_BUDGET_EXCEEDED, (
-                "门不挂起时：门完成轮（round=1）后 advance → round=2 达护栏"
-            )
-        finally:
-            get_settings.cache_clear()
+        assert exc_info.value.code == WF_BUDGET_EXCEEDED, (
+            "门不挂起时：门完成轮（round=1）后 advance → round=2 达护栏"
+        )
 
 
 # =============================================================================

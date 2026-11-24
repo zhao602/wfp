@@ -52,9 +52,14 @@ class IExecutionQueue(Protocol):
         """
         ...
 
-    async def heartbeat(self, job_id: str, worker_id: str) -> bool:
+    async def heartbeat(
+        self, job_id: str, worker_id: str, lease_ttl_seconds: Optional[int] = None
+    ) -> bool:
         """心跳续租：仅 lease_owner 匹配且 running 时刷新租约到期时刻。
 
+        lease_ttl_seconds（M5 D9 已知项修复）：续租时长；缺省 None 回退
+        settings 默认（execution_queue_lease_seconds）。worker 调用点传
+        自身租约配置——续租时长与认领时长同源（D9：不再恒回退默认）。
         续租成功返回 True；作业不存在/非本 worker 持有/非 running 返回 False
         （worker 应停止执行并放弃作业，等待接管）。
         """
@@ -93,5 +98,24 @@ class IExecutionQueue(Protocol):
         """按实例标识查找唯一活跃（pending/running）作业（cancel 端点定位用）。
 
         无活跃作业返回 None（终态作业不返回——取消语义仅针对在途执行）。
+        """
+        ...
+
+    async def count_active_by_tenant(self, tenant_id: str) -> int:
+        """按租户统计活跃（pending/running）作业数（M5 配额 worker 口径）。
+
+        worker 模式下 API 进程注册表为空（提交不注册），配额计数以队列
+        落库口径为准；构造/查询失败由调用方降级回注册表计数（best-effort）。
+        """
+        ...
+
+    async def find_latest_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例查找最新（created_at 最大）作业（M5 续跑载荷补齐）。
+
+        含终态作业——recover/review-resume 续跑作业的 tenant_id/
+        definition_version/yaml_text 从该作业复制（v1_8 幂等索引全局
+        唯一，续跑入队必须用新确定性键而非原作业键）。
         """
         ...

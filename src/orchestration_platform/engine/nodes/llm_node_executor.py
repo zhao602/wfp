@@ -25,7 +25,6 @@
 
 from typing import Any, Dict, Optional
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     LLM_INFERENCE_FAILED,
     LLM_NODE_DISABLED,
@@ -37,6 +36,7 @@ from orchestration_platform.domain.models.node_configurations import (
     LlmSamplingParameters,
 )
 from orchestration_platform.domain.values.llm_sampling_spec import resolve_sampling
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.input_assembly import (
     AssemblyFailure,
     assemble_user_message,
@@ -65,10 +65,14 @@ _SAMPLING_PARAM_NAMES: tuple = (
 class LlmNodeExecutor:
     """大模型节点执行器：装配 → 单轮推理 → 透出（薄链路，DC-05/OP-04）。"""
 
-    def __init__(self, llm_client: Optional[ILlmClient] = None) -> None:
+    def __init__(
+        self,
+        llm_client: Optional[ILlmClient] = None,
+        settings: Optional[EngineSettings] = None,
+    ) -> None:
         """构造大模型节点执行器（不读节点配置、不建立网络连接）。"""
         self._llm_client = llm_client
-        self._settings = get_settings()
+        self._settings = settings or EngineSettings()
 
     @property
     def node_type(self) -> NodeType:

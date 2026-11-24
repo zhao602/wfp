@@ -16,19 +16,28 @@
 #      （INV-08 式适配，batch-records §P5 留痕）。
 # =============================================================================
 
+import logging
 import uuid
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.domain.errors import (
+    INSTANCE_NOT_WAITING_REVIEW,
     REPLAY_ALREADY_IN_PROGRESS,
     STATE_CHECKPOINT_NOT_FOUND,
     DomainError,
     InstanceStateConflictError,
 )
-from orchestration_platform.domain.models.enums import EventType
+from orchestration_platform.domain.models.enums import EventType, InstanceStatus
+from orchestration_platform.engine.abstractions.compiled_workflow import (
+    CompiledWorkflow,
+)
+from orchestration_platform.governance.metering.usage_recorder import (
+    get_usage_recorder,
+)
 
 router = APIRouter(tags=["回滚/重放/审核"])
 
@@ -240,6 +249,7 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
         _acquire_checkpoint_repository,
         _execution_submitter,
         _executor_registry,
+        _get_execution_queue,
         _instance_registry,
         _publish_instance_domain_event,
     )
@@ -323,6 +333,27 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
         # re_execute：步骤③④⑤（DC-30 规则 3）——launch 回调注入
         next_replay_id = _next_replay_instance_id(instance_id, _instance_registry)
 
+        # T7 载荷补齐（M2 移交②，design D9）：origin 作业 yaml_text 随
+        # 重放作业携带（worker 认领侧重解析编译；in_process 分支不消费
+        # 该参——注册表 origin 无队列作业时为 None，行为与历史一致）
+        replay_yaml_text: Optional[str] = None
+        replay_queue = _get_execution_queue()
+        if replay_queue is not None:
+            try:
+                origin_job = await replay_queue.find_latest_by_instance(
+                    instance_id
+                )
+                if origin_job is not None:
+                    replay_yaml_text = origin_job.yaml_text
+            except Exception:
+                logging.warning(
+                    "origin 作业查询失败（重放 yaml_text 载荷降级）:"
+                    " instance_id=%s",
+                    instance_id,
+                    exc_info=True,
+                )
+                replay_yaml_text = None
+
         async def _launch(compiled_graph, checkpoint) -> int:
             """launch 回调：新实例注册 + Scheduler 真跑至终态（原记录零覆盖）。
 
@@ -344,6 +375,8 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
                 executor_registry=_executor_registry,
                 checkpoint_repository=checkpoint_repo,
                 event_callback=NodeEventCallbackImpl(_instance_registry),
+                settings=build_engine_settings(),
+                usage_recorder=get_usage_recorder(),
             )
             # M1 spawn 收口：统一提交器提交（in_process 默认等价路径；
             # worker 模式入队返回 None，重放实例由 worker 认领）
@@ -357,6 +390,7 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
                 resume_checkpoint=checkpoint,
                 trigger_source="re_execute",
                 rt=new_rt,
+                yaml_text=replay_yaml_text,
             )
             if task is not None:
                 await task
@@ -397,6 +431,184 @@ async def replay_instance(instance_id: str, body: ReplayBody) -> dict:
     }
 
 
+async def _rebuild_review_compiled(
+    definition_id: str,
+    origin_yaml_text: Optional[str],
+    origin_definition_version: Optional[int],
+) -> Optional[CompiledWorkflow]:
+    """重建审核决策用编译产物（M5 design D7）：origin yaml 优先，仓储回退。
+
+    与 worker 定义解析同源（run_claimed_job 步骤 1）：yaml_text →
+    parse/compile；无则工作流仓储 (definition_id, version) 取定义 →
+    compile（definition 域对象直编，不反序列化 yaml）。均失败 → None
+    （调用方 409 拒绝，镜像 in_process rt.compiled 缺失口径）。
+    """
+    from orchestration_platform.engine.graph_compiler import GraphCompiler
+    from orchestration_platform.workflow.yaml_workflow_parser import (
+        YamlWorkflowParser,
+    )
+
+    if origin_yaml_text:
+        try:
+            definition = YamlWorkflowParser().parse(origin_yaml_text)
+            return await GraphCompiler(
+                settings=build_engine_settings()
+            ).compile(definition)
+        except Exception:
+            logging.warning(
+                "origin 作业 yaml 编译失败，回退工作流仓储: definition_id=%s",
+                definition_id,
+                exc_info=True,
+            )
+    try:
+        from orchestration_platform.persistence.repository_factory import (
+            RepositoryFactory,
+        )
+
+        workflow_repo = RepositoryFactory.create_workflow_repository()
+        definition = await workflow_repo.get(
+            definition_id, origin_definition_version
+        )
+        return await GraphCompiler(
+            settings=build_engine_settings()
+        ).compile(definition)
+    except Exception:
+        logging.warning(
+            "工作流仓储定义获取/编译失败: definition_id=%s",
+            definition_id,
+            exc_info=True,
+        )
+        return None
+
+
+async def _submit_review_worker(
+    instance_id: str, body: ReviewBody
+) -> Optional[dict]:
+    """worker 模式审核决策：快照守卫 + 编译重建 + 服务复用（M5 D7/D8）。
+
+    - 快照不可见 → None（调用方维持 404）；
+    - 非 waiting_review → 409 INSTANCE_NOT_WAITING_REVIEW（镜像服务
+      前置校验，detail 同文案——响应形状与 in_process 409 一致）；
+    - 检查点：latest_for_instance（与服务回退同源；None → 404
+      STATE_CHECKPOINT_NOT_FOUND 同文案语义）；
+    - 编译重建失败 → 409「缺少可决策的执行上下文」（镜像 in_process）；
+    - approve 续跑：服务留痕 STATUS_CHANGED(running) 后入队续跑作业
+      （异步入队不可入同步回调——后置入队；幂等键 :review-resume:
+      前缀、trigger_source=review_resume；reject/timeout_action 不入队）。
+    """
+    from orchestration_platform.api.instance_read_through import (
+        read_instance_snapshot,
+    )
+    from orchestration_platform.api.routers.execution_instance_router import (
+        _acquire_checkpoint_repository,
+        _domain_event_publisher,
+        _enqueue_worker_resume_job,
+        _get_execution_queue,
+    )
+    from orchestration_platform.application.review_service import (
+        ReviewDecisionService,
+    )
+    from orchestration_platform.persistence.repository_factory import (
+        RepositoryFactory,
+    )
+
+    snapshot = await read_instance_snapshot(instance_id)
+    if snapshot is None:
+        return None
+    status = str(snapshot.get("status", ""))
+    if status != InstanceStatus.WAITING_REVIEW.value:
+        conflict = InstanceStateConflictError(
+            INSTANCE_NOT_WAITING_REVIEW,
+            f"实例 {instance_id} 当前状态为 {status}，"
+            f"仅等待审核（waiting_review）实例可提交审核决策",
+        )
+        raise HTTPException(status_code=409, detail=str(conflict))
+    definition_id = str(snapshot.get("definition_id", "") or "")
+
+    checkpoint_repo = _acquire_checkpoint_repository()
+    if checkpoint_repo is None:
+        raise HTTPException(
+            status_code=500, detail="检查点仓储不可用，无法处理审核决策",
+        )
+    checkpoint = await checkpoint_repo.latest_for_instance(instance_id)
+    if checkpoint is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"实例 {instance_id} 无可用挂起检查点，无法处理审核决策",
+        )
+
+    # origin 作业：yaml/版本（编译重建）+ trace/tenant（P7 领域事件富化）
+    queue = _get_execution_queue()
+    origin = None
+    if queue is not None:
+        try:
+            origin = await queue.find_latest_by_instance(instance_id)
+        except Exception:
+            logging.warning(
+                "origin 作业查询失败（审核上下文降级）: instance_id=%s",
+                instance_id,
+                exc_info=True,
+            )
+    compiled = await _rebuild_review_compiled(
+        definition_id,
+        getattr(origin, "yaml_text", None),
+        getattr(origin, "definition_version", None),
+    )
+    if compiled is None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"实例 {instance_id} 缺少可决策的执行上下文",
+        )
+
+    # approve 前置队列可用性检查：先于决策留痕（STATUS_CHANGED 落账后
+    # 队列不可用将留「running 但无续跑作业」的悬挂态——构造失败提前拒绝）
+    if body.decision == "approve" and queue is None:
+        raise HTTPException(
+            status_code=500, detail="执行队列不可用，无法处理审核决策",
+        )
+
+    event_repo = RepositoryFactory.create_event_repository()
+    service = ReviewDecisionService(
+        checkpoint_repo,
+        event_repo,
+        _domain_event_publisher,
+    )
+    try:
+        result = await service.submit_decision(
+            instance_id=instance_id,
+            decision=body.decision,
+            current_status=InstanceStatus.WAITING_REVIEW.value,
+            actor=body.actor,
+            comment=body.comment,
+            trace_id=str(getattr(origin, "trace_id", "") or ""),
+            tenant_id=str(getattr(origin, "tenant_id", "") or ""),
+            suspended_checkpoint_id=checkpoint.checkpoint_id,
+            get_gate_config=lambda node_id: getattr(
+                compiled.get_node(node_id), "configuration", None
+            ),
+            set_status=lambda target_status: None,
+            resume_runner=lambda resumed_checkpoint: None,
+        )
+    except InstanceStateConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except DomainError as exc:
+        if exc.code == STATE_CHECKPOINT_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    # approve 续跑入队（服务留痕 STATUS_CHANGED(running) 之后；确定性
+    # 幂等键 :review-resume: 前缀规避 v1_8 全局唯一索引，design D8）
+    if body.decision == "approve":
+        await _enqueue_worker_resume_job(
+            instance_id,
+            checkpoint.checkpoint_id,
+            definition_id=definition_id,
+            trigger_source="review_resume",
+            idempotency_scope="review-resume",
+        )
+    return result
+
+
 @router.post("/instances/{instance_id}/review")
 async def submit_review(instance_id: str, body: ReviewBody) -> dict:
     """提交人工审核决策（arch_review_v2_tasks_wave2 G2，CHG-63/DC-27，发布点 P7）。
@@ -406,6 +618,10 @@ async def submit_review(instance_id: str, body: ReviewBody) -> dict:
     映射终态（不自动重跑）；timeout_action → REVIEW_TIMEOUT；决策经
     STATUS_CHANGED 执行事件 + governance.review_decision 领域事件留痕
     （spec §6.4 规则 3，审批动作全留痕）。
+
+    M5 worker 读穿透（design D7/D8）：注册表未命中 → 快照守卫 + 编译
+    重建 + ReviewDecisionService 复用（决策留痕/终态映射/审核门配置零
+    重复实现）；approve 续跑 = 入队续跑作业（worker 认领执行）。
     """
     # 延迟导入：路由模块保持轻装载；执行实例路由内部与服务的依赖按需进入
     from orchestration_platform.api.routers.execution_instance_router import (
@@ -420,7 +636,13 @@ async def submit_review(instance_id: str, body: ReviewBody) -> dict:
     from orchestration_platform.engine.scheduler import Scheduler
     from orchestration_platform.persistence.repository_factory import RepositoryFactory
 
-    rt = _instance_registry.get(instance_id)
+    try:
+        rt = _instance_registry.get(instance_id)
+    except HTTPException:
+        result = await _submit_review_worker(instance_id, body)
+        if result is not None:
+            return result
+        raise
 
     if rt.compiled is None:
         raise HTTPException(
@@ -452,6 +674,8 @@ async def submit_review(instance_id: str, body: ReviewBody) -> dict:
             executor_registry=_executor_registry,
             checkpoint_repository=checkpoint_repo,
             event_callback=NodeEventCallbackImpl(_instance_registry),
+            settings=build_engine_settings(),
+            usage_recorder=get_usage_recorder(),
         )
         _execution_submitter.submit_sync(
             scheduler,

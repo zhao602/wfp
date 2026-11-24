@@ -20,7 +20,6 @@ import asyncio
 import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.context_engine.models import AgentContext, ConversationTurn
 from orchestration_platform.context_engine.window_strategies import (
     ImportanceRankingStrategy,
@@ -39,6 +38,7 @@ from orchestration_platform.domain.models.enums import (
     NodeType,
 )
 from orchestration_platform.domain.models.node_configurations import AgentNodeConfiguration
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.input_assembly import (
     AssemblyFailure,
     assemble_agent_inputs,
@@ -64,6 +64,7 @@ class AgentNodeExecutor:
         fallback_llm_client: Optional[ILlmClient] = None,
         tool_invoker: Optional[Any] = None,
         tool_invokers: Optional[Dict[str, IToolInvoker]] = None,
+        settings: Optional[EngineSettings] = None,
     ) -> None:
         """构造 Agent 执行器。
 
@@ -74,10 +75,12 @@ class AgentNodeExecutor:
                                     传入单实例时内部并入工具映射（兼容语义）
             tool_invokers       —— 工具标识 -> 调用器实例 的映射（merge_tool_into_agent_node
                                     DC-D，可选；None/空映射时行为与改造前一致，INV-9）
+            settings            —— 引擎运行配置（M4 B10：缺省 None → EngineSettings()
+                                    默认值；宿主注入生效 env 覆盖）
         """
         self._llm_client = llm_client
         self._fallback_client = fallback_llm_client
-        self._settings = get_settings()
+        self._settings = settings or EngineSettings()
         # 工具调用器映射：tool_invokers 全量 + tool_invoker 单实例并入
         invokers: Dict[str, IToolInvoker] = dict(tool_invokers) if tool_invokers else {}
         if tool_invoker is not None:
@@ -322,7 +325,7 @@ class AgentNodeExecutor:
             ),
             ContextWindowStrategyType.STRUCTURAL_LOSSLESS: lambda: (
                 StructuralLosslessStrategy()
-                if get_settings().structural_lossless_pruning_enabled
+                if self._settings.structural_lossless_pruning_enabled
                 else SlidingWindowStrategy(window_size=10)
             ),
         }

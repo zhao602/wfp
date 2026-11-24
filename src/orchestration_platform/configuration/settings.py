@@ -9,6 +9,7 @@
 # =============================================================================
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Optional
 
 from pydantic import Field
@@ -24,8 +25,11 @@ class Settings(BaseSettings):
     """
 
     # 允许从 .env 读取，环境变量名大小写不敏感，忽略未声明的额外变量
+    # env_file 锚定仓库根（2026-11-23）：原相对路径 ".env" 按进程 cwd 解析，
+    # 服务从非仓库根目录启动时会读到别处 .env（实测：换模型后重启仍返回旧
+    # 模型名，403 复现）。锚定后与启动目录解耦；环境变量优先级不变。
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(Path(__file__).resolve().parents[3] / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

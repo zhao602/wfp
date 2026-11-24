@@ -24,7 +24,11 @@ from orchestration_platform.domain.errors import (
     TenantQuotaExceededError,
     WorkflowValidationError,
 )
+from orchestration_platform.governance.metering.usage_recorder import (
+    get_usage_recorder,
+)
 from orchestration_platform.observability.metrics_collector import MetricsCollector
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.application.schedule.models import TriggerSchedule
 from orchestration_platform.application.schedule.schedule_scanner import (
     ScheduleFireCallback,
@@ -83,10 +87,16 @@ def build_cron_fire_callback(
             instance_id=instance_id,
             definition_id=schedule.workflow_id,
         )
-        _instance_registry.register(rt)
+        # M5 陈旧注册表消除（design D2）：worker 模式不注册——API 进程
+        # 注册表保持空（读穿透口径）；rt 仍传 submit（worker 分支读
+        # 租户/定义标识）。in_process 注册语义零变化。
+        if get_settings().execution_mode != "worker":
+            _instance_registry.register(rt)
         try:
             definition = await workflow_repository.get(schedule.workflow_id)
-            compiled = await GraphCompiler().compile(definition)
+            compiled = await GraphCompiler(
+                settings=build_engine_settings()
+            ).compile(definition)
             rt.compiled = compiled
             rt.trace_id = trace_id
         except Exception:
@@ -134,6 +144,8 @@ def build_cron_fire_callback(
             event_callback=NodeEventCallbackImpl(_instance_registry),
             run_log_recorder=run_log_recorder,
             domain_event_publisher=domain_event_publisher,
+            settings=build_engine_settings(),
+            usage_recorder=get_usage_recorder(),
         )
         initial_state = SharedState(instance_id=instance_id, node_outputs={})
         # M1 spawn 收口：统一提交器提交（in_process 默认 =
@@ -209,7 +221,11 @@ def create_app() -> FastAPI:
         def _make_builtin_engine():
             from orchestration_platform.engine.scheduler import Scheduler
 
-            return Scheduler(executor_registry=container.resolve("executor_registry"))
+            return Scheduler(
+                executor_registry=container.resolve("executor_registry"),
+                settings=build_engine_settings(),
+                usage_recorder=get_usage_recorder(),
+            )
 
         return _make_builtin_engine
 
@@ -233,7 +249,8 @@ def create_app() -> FastAPI:
                 )
                 return None
             return LangGraphAdapter(
-                executor_registry=container.resolve("executor_registry")
+                executor_registry=container.resolve("executor_registry"),
+                settings=build_engine_settings(),
             )
 
         return _make_langgraph_engine

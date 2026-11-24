@@ -27,6 +27,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import HTTPException
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     INSTANCE_NOT_FOUND,
@@ -42,7 +43,8 @@ from orchestration_platform.domain.models.domain_event import (
     DomainEvent,
     summarize_text,
 )
-from orchestration_platform.domain.models.enums import NodeType
+from orchestration_platform.domain.models.enums import EventType, NodeType
+from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.domain.models.execution_job import ExecutionJob
 from orchestration_platform.engine.abstractions.domain_event_publisher import (
     IDomainEventPublisher,
@@ -244,7 +246,9 @@ def _build_executor_registry():
                 if class_name == "AgentNodeExecutor":
                     if llm_client is not None:
                         executor = cls(
-                            llm_client=llm_client, tool_invokers=_tool_invokers
+                            llm_client=llm_client,
+                            tool_invokers=_tool_invokers,
+                            settings=build_engine_settings(),
                         )
                         registry.register(executor)
                         logging.info("Agent 执行器注册成功")
@@ -256,7 +260,10 @@ def _build_executor_registry():
                 # 工厂失败 → 跳过注册 + 告警（与 Agent 分支一致，不拖垮启动）
                 if class_name == "LlmNodeExecutor":
                     if llm_client is not None:
-                        executor = cls(llm_client=llm_client)
+                        executor = cls(
+                            llm_client=llm_client,
+                            settings=build_engine_settings(),
+                        )
                         registry.register(executor)
                         logging.info("LLM 执行器注册成功")
                     else:
@@ -274,6 +281,13 @@ def _build_executor_registry():
                         "Tool 执行器注册成功（注入 %d 个工具调用器）",
                         len(_tool_invokers),
                     )
+                    continue
+
+                # Code 执行器消费 EngineSettings（M4 B10：护栏四字段经构造注入）
+                if class_name == "CodeNodeExecutor":
+                    executor = cls(settings=build_engine_settings())
+                    registry.register(executor)
+                    logging.info("Code 执行器注册成功")
                     continue
 
                 # DataSource 执行器需要 connector_registry 参数，按类名分派构造（DC-2/CHG-3）
@@ -569,6 +583,24 @@ def _acquire_checkpoint_repository():
     except Exception:
         logging.warning(
             "检查点仓储获取失败，本次运行不持久化检查点", exc_info=True,
+        )
+        return None
+
+
+def _acquire_event_repository():
+    """经仓储工厂获取事件仓储（M5 design D5：可见窗 INSTANCE_QUEUED 落账）。
+
+    获取失败（如 postgres 不可达）→ 降级 None + 告警（对齐检查点仓储降级
+    范式，INV-01）；调用方 best-effort 落账，失败不影响提交契约。
+    """
+    try:
+        from orchestration_platform.persistence.repository_factory import RepositoryFactory
+
+        return RepositoryFactory.create_event_repository()
+    except Exception:
+        logging.warning(
+            "事件仓储获取失败，INSTANCE_QUEUED 可见窗事件跳过落账",
+            exc_info=True,
         )
         return None
 
@@ -1073,6 +1105,34 @@ class ExecutionSubmitter:
                 idempotency_key=instance_id,
             )
             await queue.enqueue(job)
+            # M5 可见窗消除（design D5）：入队成功即落 INSTANCE_QUEUED 事件
+            # ——提交→认领窗口期 GET/SSE 经事件仓储推导 pending（不再 404）。
+            # best-effort：仓储不可达/落账失败仅告警（INV-01，提交不受影响）；
+            # in_process 不写（注册表即真源，零变化）。
+            try:
+                event_repo = _acquire_event_repository()
+                if event_repo is not None:
+                    await event_repo.append(
+                        ExecutionEvent(
+                            event_id=str(uuid.uuid4()),
+                            instance_id=instance_id,
+                            event_type=EventType.INSTANCE_QUEUED,
+                            node_id=None,
+                            sequence=0,
+                            payload={
+                                "definition_id": job.definition_id,
+                                "tenant_id": job.tenant_id or "",
+                                "trace_id": trace_id,
+                            },
+                        )
+                    )
+            except Exception:
+                logging.warning(
+                    "INSTANCE_QUEUED 可见窗事件落账失败（提交不受影响）:"
+                    " instance_id=%s",
+                    instance_id,
+                    exc_info=True,
+                )
             return None
         return self._submit_in_process(
             scheduler,

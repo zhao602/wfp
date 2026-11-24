@@ -17,7 +17,7 @@
 # =============================================================================
 
 import json
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.execution_job import ExecutionJob
@@ -27,6 +27,27 @@ from orchestration_platform.persistence.abstractions.execution_queue import (
 from orchestration_platform.persistence.postgres.tenant_scoped_base import (
     TenantScopedPostgresRepository,
 )
+
+
+def _decode_jsonb_dict(raw: object) -> Dict[str, Any]:
+    """解出 JSONB dict 列（M5 T2：asyncpg 无 codec 返回 str 的读侧修复）。
+
+    enqueue 以 json.dumps 写入 initial_inputs JSONB 列；asyncpg 未配置
+    JSONB codec 时读侧返回 str——直接 dict(str) 必崩（claim/take_over/get/
+    find 在真实 PG 上此前均不可用）。str → json.loads；None → {}；解码
+    失败/非 dict 形态 → {}（防御既有脏行，纯函数便于无 PG 环境单测）。
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        try:
+            decoded = json.loads(raw)
+        except Exception:
+            return {}
+        return dict(decoded) if isinstance(decoded, dict) else {}
+    return {}
 
 
 class PostgresExecutionQueue(TenantScopedPostgresRepository):
@@ -47,7 +68,7 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
             definition_id=row["definition_id"],
             definition_version=row["definition_version"],
             yaml_text=row["yaml_text"],
-            initial_inputs=dict(row["initial_inputs"] or {}),
+            initial_inputs=_decode_jsonb_dict(row["initial_inputs"]),
             trigger_source=row["trigger_source"],
             trace_id=row["trace_id"],
             resume_checkpoint_id=row["resume_checkpoint_id"],
@@ -174,8 +195,10 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
             )
             return self._row_to_job(row) if row is not None else None
 
-    async def heartbeat(self, job_id: str, worker_id: str) -> bool:
-        """心跳续租：仅 lease_owner 匹配且 running 时刷新到期时刻。"""
+    async def heartbeat(
+        self, job_id: str, worker_id: str, lease_ttl_seconds: Optional[int] = None
+    ) -> bool:
+        """心跳续租：仅 lease_owner 匹配且 running 时刷新到期时刻（D9 TTL 参）。"""
         async with self._admin_connection() as conn:
             row = await conn.fetchrow(
                 """
@@ -186,7 +209,7 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
                 """,
                 job_id,
                 worker_id,
-                self._default_ttl_seconds(None),
+                self._default_ttl_seconds(lease_ttl_seconds),
             )
             return row is not None
 
@@ -260,6 +283,35 @@ class PostgresExecutionQueue(TenantScopedPostgresRepository):
                 WHERE instance_id = $1
                   AND status IN ('pending', 'running')
                 ORDER BY created_at, job_id
+                LIMIT 1
+                """,
+                instance_id,
+            )
+            return self._row_to_job(row) if row is not None else None
+
+    async def count_active_by_tenant(self, tenant_id: str) -> int:
+        """按租户统计活跃（pending/running）作业数（M5 配额 worker 口径）。"""
+        async with self._admin_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) AS active_count FROM execution_job
+                WHERE tenant_id = $1
+                  AND status IN ('pending', 'running')
+                """,
+                tenant_id,
+            )
+            return int(row["active_count"]) if row is not None else 0
+
+    async def find_latest_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例查找最新（created_at, job_id 最大）作业（含终态，M5 载荷补齐）。"""
+        async with self._admin_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM execution_job
+                WHERE instance_id = $1
+                ORDER BY created_at DESC, job_id DESC
                 LIMIT 1
                 """,
                 instance_id,

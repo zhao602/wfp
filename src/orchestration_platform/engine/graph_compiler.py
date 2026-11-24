@@ -12,7 +12,6 @@ import logging
 from collections import deque
 from typing import Dict, List, Optional, Set
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import WF_VALIDATION_FAILED, WorkflowValidationError
 from orchestration_platform.domain.models.common import ValidationReport
 from orchestration_platform.domain.models.enums import (
@@ -40,6 +39,7 @@ from orchestration_platform.engine.abstractions.compiled_workflow import (
     ConditionalEdgeMeta,
     ParallelRegionMeta,
 )
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 
 _logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class GraphCompiler:
         self,
         report_builder: ValidationReportBuilder | None = None,
         plugin_schema_provider=None,
+        settings: Optional[EngineSettings] = None,
     ) -> None:
         """构造编译器。
 
@@ -59,9 +60,13 @@ class GraphCompiler:
             plugin_schema_provider  —— 插件节点 schema 提供器（可选），
                                        提供 get_input_schema(node_name)/get_output_schema(node_name)；
                                        缺省为 None，跳过插件节点 schema 校验（降级形态）。
+            settings                —— 引擎运行配置（M4 B10：缺省 None →
+                                       EngineSettings() 默认值；宿主注入生效
+                                       env 覆盖）。
         """
         self._report_builder = report_builder or ValidationReportBuilder()
         self._plugin_schema_provider = plugin_schema_provider
+        self._settings = settings or EngineSettings()
 
     async def compile(self, definition: WorkflowDefinition) -> CompiledWorkflow:
         """将已校验的工作流定义编译为 CompiledWorkflow。
@@ -261,7 +266,7 @@ class GraphCompiler:
         非活跃回退：形状不满足且等待语义为缺省（wait_all、无 wait_count）时，
         不产出区域 + 警告日志，维持既有单游标语义（examples/模板零回归）。
         """
-        max_branches = get_settings().parallel_branch_max
+        max_branches = self._settings.parallel_branch_max
         node_index = definition.node_index()
         node_ids: Set[str] = set(node_index.keys())
         out_edges: Dict[str, List[EdgeDefinition]] = {}

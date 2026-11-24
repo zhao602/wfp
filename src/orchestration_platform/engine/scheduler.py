@@ -18,7 +18,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     NODE_TIMEOUT,
     WF_BUDGET_EXCEEDED,
@@ -52,13 +51,14 @@ from orchestration_platform.engine.abstractions.compiled_workflow import (
 from orchestration_platform.engine.abstractions.domain_event_publisher import (
     IDomainEventPublisher,
 )
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
+from orchestration_platform.engine.abstractions.node_usage_recorder import NodeUsageRecorder
 from orchestration_platform.engine.node_executor_registry import NodeExecutorRegistry
 from orchestration_platform.engine.nodes.base import (
     NodeExecutionContext,
     NodeExecutionResult,
 )
 from orchestration_platform.engine.shared_state_manager import SharedStateManager
-from orchestration_platform.governance.metering.usage_recorder import get_usage_recorder
 from orchestration_platform.persistence.abstractions.repositories import (
     ICheckpointRepository,
 )
@@ -297,6 +297,8 @@ class Scheduler:
         run_log_recorder: Optional[Any] = None,
         domain_event_publisher: Optional[IDomainEventPublisher] = None,
         cancellation_checker: Optional[Callable[[], bool]] = None,
+        settings: Optional[EngineSettings] = None,
+        usage_recorder: Optional[NodeUsageRecorder] = None,
     ) -> None:
         """构造调度器。
 
@@ -316,11 +318,22 @@ class Scheduler:
                                     run_and_record CancelledError 分支统一
                                     落 cancelled 终态）；缺省 None 零行为
                                     （HC-01，既有调用点零改动）。
+            settings             —— 引擎运行配置（M4 B10：engine-owned
+                                    EngineSettings；缺省 None → EngineSettings()
+                                    默认值，与 configuration 默认一致；宿主经
+                                    application.engine_wiring.build_engine_settings()
+                                    注入以生效 env 覆盖）。
+            usage_recorder       —— 节点级用量计量器（M4 B10：engine-owned
+                                    NodeUsageRecorder 协议实例；缺省 None 跳过
+                                    计量——API 进程由宿主注入装配后的 governance
+                                    计量器，worker/run_local 无装配 → None ==
+                                    现行跳过语义）。
         """
         self._registry = executor_registry
         self._checkpoint_repo = checkpoint_repository
         self._expression_evaluator = RestrictedExpressionEvaluator()
-        self._settings = get_settings()
+        self._settings = settings or EngineSettings()
+        self._usage_recorder = usage_recorder
         self._event_callback = event_callback
         self._run_log_recorder = run_log_recorder
         self._domain_event_publisher = domain_event_publisher
@@ -722,7 +735,7 @@ class Scheduler:
         # 绝不影响执行主流程（INV-01）
         token_usage = (result.metadata or {}).get("token_usage")
         if isinstance(token_usage, dict) and token_usage:
-            recorder = get_usage_recorder()
+            recorder = self._usage_recorder
             if recorder is not None:
                 try:
                     await recorder.record_node_usage(

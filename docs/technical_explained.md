@@ -215,7 +215,7 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `langgraph_adapter.py` | 实现 `IWorkflowEngine`，将 CompiledWorkflow 编译为 LangGraph StateGraph |
+| `langgraph_adapter.py` | LangGraph 双运行时适配器：将 CompiledWorkflow 编译为 LangGraph StateGraph |
 | `langgraph_state_mapping.py` | SharedState 与 LangGraph 状态字典双向转换 |
 
 **重要约束**：业务代码禁止直接 `import langgraph`，所有图编译、检查点、中断恢复
@@ -228,7 +228,6 @@
 | `graph_compiler.py` | 将 WorkflowDefinition 编译为 CompiledWorkflow 中间表示 |
 | `abstractions/compiled_workflow.py` | 框架无关的可执行图中间表示 |
 | `abstractions/workflow_compiler.py` | IWorkflowCompiler 编译契约 |
-| `abstractions/workflow_engine.py` | IWorkflowEngine 引擎契约 |
 
 ---
 

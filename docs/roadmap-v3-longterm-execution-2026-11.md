@@ -92,6 +92,7 @@ S2(SSO 闭环, 5–8 或 0.5 人日) —— 可插小批，建议 B15 前
 - **时点**：紧随 B9（同改调度器语义相邻，省一次回归）；若 B9 超支可与之换序后置，但须在 B14 前完成（T4 注入面受益于解耦边界）。
 - **出口验收**：`engine/` import 清单零 `api`/`configuration` 直接依赖（脚本断言入 `wfp-check` 或 CI）；54 开关体系裁剪点收敛装配层并梳理成表；全门禁绿。
 - **风险**：注入面过宽 → 拆两步（先配置/仓储，后事件出口）。
+- **进度（2026-11-24）**：M4 收口（见 `roadmap_m4_engine_decoupling` exit-record：EngineSettings 17 字段 + build_engine_settings 装配点 + usage_recorder 协议注入 + adapter api 依赖移除 + IWorkflowEngine 删除（台账 44→43）+ AST 导入门禁（CI 插步，engine 67 文件 6 前缀零违规）+ 54 开关矩阵；全门禁绿——pytest 3735+3 / vitest 1010+13 / typecheck 13 / e2e 6/6 / 四基准匹配态 A/B 零一致回归（测量窗机器频率节流同码 3.2x 对称，fast-state 复测欠账）/ ruff 基线 ~5.4k 债务发现（CI 真实 ruff 从未绿），本批自增文件零违规）。
 
 ### S2 SSO 闭环（可插小批）— **已裁决：xmlsec 验签落地（2026-11-23）**
 

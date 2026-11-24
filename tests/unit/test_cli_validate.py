@@ -32,7 +32,7 @@ _SINGLE_TRIGGER = VALID_FIXTURES / "valid_single_trigger_node.yaml"
 _SEQUENTIAL_FOUR = VALID_FIXTURES / "valid_sequential_four_nodes.yaml"
 _WITH_BRANCH = VALID_FIXTURES / "valid_with_branch.yaml"
 _CYCLIC = INVALID_FIXTURES / "invalid_cyclic_connection.yaml"
-_MISSING_MODEL = INVALID_FIXTURES / "invalid_missing_agent_model.yaml"
+_FOLLOWS_GLOBAL = VALID_FIXTURES / "valid_agent_model_follows_global.yaml"
 _YAML_SYNTAX = INVALID_FIXTURES / "invalid_yaml_syntax_error.yaml"
 _AGENT_MANIFEST = EXAMPLES_DIR / "drift_detection" / "drift_detection_agents.yaml"
 
@@ -118,8 +118,18 @@ class TestValidateCommand:
         captured = capsys.readouterr()
         assert "校验未通过" in captured.out or "环路" in captured.out
 
-    def test_node_config_invalid_exit_one(self, capsys):
-        assert main(["validate", str(_MISSING_MODEL)]) == 1
+    def test_node_config_missing_model_warns_exit_zero(self, capsys):
+        """跟随全局语义（2026-11-20 修订 FR-04）：agent 空模型 = WARNING 不计失败。
+
+        原 ERROR 语义（exit 1）由 test_topology_invalid_exit_one（_CYCLIC）
+        继续覆盖；本用例转为验证 WARNING 可辨识提示 + exit 0。
+        （样本迁移：invalid_missing_agent_model.yaml → valid_agent_model_
+        follows_global.yaml，空模型自本修订起属合法定义。）
+        """
+        assert main(["validate", str(_FOLLOWS_GLOBAL)]) == 0
+        out = capsys.readouterr().out
+        assert "跟随全局主模型" in out
+        assert "[warning]" in out
 
     def test_yaml_syntax_error_exit_two(self, capsys):
         assert main(["validate", str(_YAML_SYNTAX)]) == 2

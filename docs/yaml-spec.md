@@ -78,6 +78,11 @@ outputs:
     available_tools: []
 ```
 
+> **model_identifier 留空语义（2026-11-20 修订）**：agent / llm 节点的
+> `model_identifier` 支持空字符串 = 运行时跟随全局主模型（`.env` 的
+> `LLM_PRIMARY_MODEL`）；加载期校验对空值降为 WARNING 提示，不算校验
+> 失败。`.env` 更换模型后无需逐节点同步修改已落盘工作流。
+
 ### Tool（tool）
 
 ```yaml

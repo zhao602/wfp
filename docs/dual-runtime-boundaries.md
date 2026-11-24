@@ -13,7 +13,7 @@
 
 ## 2. resume / rollback / replay / submit_review：子集外声明
 
-四个 `IWorkflowEngine` 方法在 LangGraph 适配器中**不提供真实能力**——调用即明确报错（或不可达），不静默伪造支持。真实能力全部在内置引擎链路。
+四个适配器方法（`resume` / `rollback` / `replay` / `submit_review`）在 LangGraph 适配器中**不提供真实能力**——调用即明确报错（或不可达），不静默伪造支持。真实能力全部在内置引擎链路。
 
 | 方法 | 适配器行为 | 错误码 | 真实能力归属（内置引擎链路） |
 |---|---|---|---|

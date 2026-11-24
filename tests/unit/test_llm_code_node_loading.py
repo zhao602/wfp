@@ -31,7 +31,6 @@ import yaml
 
 from orchestration_platform.domain.errors import (
     CODE_SCRIPT_INVALID,
-    LLM_PARAM_INVALID,
     WF_VALIDATION_FAILED,
     WorkflowValidationError,
 )
@@ -332,10 +331,10 @@ class TestLlmModelIdentifierRejection:
         assert len(issues) == 1
         issue = issues[0]
         assert issue.code == WF_VALIDATION_FAILED
-        assert issue.severity == Severity.ERROR
+        # 跟随全局语义（2026-11-20 修订 FR-04）：留空 = WARNING 提示
+        assert issue.severity == Severity.WARNING
         assert issue.node_id == "llm_generate"
-        assert issue.message.startswith(f"{LLM_PARAM_INVALID}: ")
-        assert "缺少模型标识" in issue.message
+        assert "跟随全局主模型" in issue.message
         assert "model_identifier" in issue.message
 
 

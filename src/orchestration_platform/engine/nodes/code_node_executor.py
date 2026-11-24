@@ -41,7 +41,6 @@ import hashlib
 import logging
 from typing import Dict, Optional
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     CODE_NODE_DISABLED,
     CODE_OUTPUT_TOO_LARGE,
@@ -51,6 +50,7 @@ from orchestration_platform.domain.errors import (
 from orchestration_platform.domain.models.common import JsonValue
 from orchestration_platform.domain.models.enums import NodeType, ViolationType
 from orchestration_platform.domain.models.node_configurations import CodeNodeConfiguration
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.input_assembly import (
     AssemblyFailure,
     assemble_params,
@@ -99,9 +99,10 @@ class CodeNodeExecutor:
         policy_repository: Optional[ISandboxPolicyRepository] = None,
         violation_publisher: Optional[ViolationPublisher] = None,
         tenant_id: str = "default",
+        settings: Optional[EngineSettings] = None,
     ) -> None:
         """构造代码节点执行器（依赖注入缺省 None → 未引用路径零开销）。"""
-        self._settings = get_settings()
+        self._settings = settings or EngineSettings()
         self._policy_repository = policy_repository
         self._violation_publisher = violation_publisher
         self._tenant_id = tenant_id

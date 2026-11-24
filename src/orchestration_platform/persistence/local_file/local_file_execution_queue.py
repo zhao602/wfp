@@ -244,8 +244,10 @@ class LocalFileExecutionQueue:
                 self._release_claim(candidate.job_id)
         return None
 
-    async def heartbeat(self, job_id: str, worker_id: str) -> bool:
-        """心跳续租：仅 lease_owner 匹配且 running 时刷新到期时刻。"""
+    async def heartbeat(
+        self, job_id: str, worker_id: str, lease_ttl_seconds: Optional[int] = None
+    ) -> bool:
+        """心跳续租：仅 lease_owner 匹配且 running 时刷新到期时刻（D9 TTL 参）。"""
         job = self._load_job(job_id)
         if (
             job is None
@@ -255,7 +257,7 @@ class LocalFileExecutionQueue:
             return False
         job.lease_expires_at = (
             self._now()
-            + timedelta(seconds=self._default_ttl_seconds(None))
+            + timedelta(seconds=self._default_ttl_seconds(lease_ttl_seconds))
         ).isoformat()
         self._save_job(job)
         return True
@@ -318,3 +320,23 @@ class LocalFileExecutionQueue:
             return None
         active.sort(key=lambda j: (j.created_at, j.job_id))
         return active[0]
+
+    async def count_active_by_tenant(self, tenant_id: str) -> int:
+        """按租户统计活跃（pending/running）作业数（M5 配额 worker 口径）。"""
+        return sum(
+            1
+            for job in self._list_jobs()
+            if job.tenant_id == tenant_id and not job.is_terminal()
+        )
+
+    async def find_latest_by_instance(
+        self, instance_id: str
+    ) -> Optional[ExecutionJob]:
+        """按实例查找最新（created_at, job_id 最大）作业（含终态，M5 载荷补齐）。"""
+        candidates = [
+            job for job in self._list_jobs() if job.instance_id == instance_id
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda j: (j.created_at, j.job_id))
+        return candidates[-1]

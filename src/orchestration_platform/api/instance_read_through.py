@@ -123,6 +123,16 @@ class RepositoryEventReader:
         for event in reversed(events):
             if event.event_type in _REPO_TERMINAL_TYPES:
                 return True
+            # M5 决策可见性（design D7）：review reject 决策留痕
+            # STATUS_CHANGED(to_status=failed/cancelled) 即 SSE 收尾；
+            # approve→running / timeout_action→review_timeout 不收流
+            # （镜像 in_process _TERMINAL_STATUSES 收尾语义）
+            if (
+                event.event_type == EventType.STATUS_CHANGED
+                and str((event.payload or {}).get("to_status", "") or "")
+                in _TERMINAL_STATUSES
+            ):
+                return True
             if event.event_type in (
                 EventType.INSTANCE_STARTED,
                 EventType.INSTANCE_SUSPENDED,
@@ -189,11 +199,13 @@ async def read_instance_snapshot(
     """从事件仓储推导实例快照（worker 模式 GET /instances/{id} 读穿透）。
 
     无事件返回 None（调用方维持 404）；状态推导按实例级事件类型
-    （INSTANCE_STARTED→running / COMPLETED→succeeded / FAILED→failed /
-    SUSPENDED→waiting_review / CANCELLED→cancelled，M3 design D5——盲区
-    取消事件使 GET 立即可见终态），不依赖 payload（PG 读侧既有丢失，
-    design D2）；definition_id 取 INSTANCE_STARTED/CANCELLED 载荷富化值
-    （local_file 后端可靠）。
+    （INSTANCE_QUEUED→pending（M5 可见窗，提交→认领窗口期不再 404）/
+    INSTANCE_STARTED→running / COMPLETED→succeeded / FAILED→failed /
+    SUSPENDED→waiting_review / CANCELLED→cancelled（M3 design D5——盲区
+    取消事件使 GET 立即可见终态）/ STATUS_CHANGED→payload.to_status
+    （M5 决策可见性——review reject/timeout 经决策留痕事件立即可见）；
+    definition_id 取 INSTANCE_QUEUED/STARTED/CANCELLED 载荷富化值
+    （local_file 后端可靠；PG 读侧 payload 已于 M5 T2 修复）。
     """
     repo = event_repository if event_repository is not None else _get_event_repository()
     if repo is None:
@@ -215,7 +227,16 @@ async def read_instance_snapshot(
     finished_at: Optional[str] = None
     definition_id = ""
     for event in events:
-        if event.event_type == EventType.INSTANCE_STARTED:
+        if event.event_type == EventType.INSTANCE_QUEUED:
+            # M5 可见窗（design D5）：提交即落队列事件——窗口期推导 pending
+            # （后续 INSTANCE_STARTED 覆盖 running；仅此事件 = 未认领）
+            status = "pending"
+            if not definition_id:
+                definition_id = str(
+                    (event.payload or {}).get("definition_id", "") or ""
+                )
+        elif event.event_type == EventType.INSTANCE_STARTED:
+            status = "running"
             if started_at is None:
                 started_at = (
                     event.occurred_at.isoformat()
@@ -225,6 +246,20 @@ async def read_instance_snapshot(
                 definition_id = str(
                     (event.payload or {}).get("definition_id", "") or ""
                 )
+        elif event.event_type == EventType.STATUS_CHANGED:
+            # M5 决策可见性（design D7）：review 决策留痕事件（服务
+            # submit_decision 落账）——to_status 推导快照状态；approve →
+            # running（续跑终态由后续 INSTANCE_COMPLETED 收口），reject →
+            # failed/cancelled（终态 finished_at 置留痕时刻）
+            to_status = str((event.payload or {}).get("to_status", "") or "")
+            if to_status:
+                status = to_status
+                if to_status in _TERMINAL_STATUSES:
+                    finished_at = (
+                        event.occurred_at.isoformat()
+                        if event.occurred_at is not None
+                        else None
+                    )
         elif event.event_type == EventType.INSTANCE_COMPLETED:
             status = "succeeded"
             finished_at = (

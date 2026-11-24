@@ -4,8 +4,10 @@
 # 目标（arch_review_v2_tasks 4.4，CHG-36；AC-03 的 V 部分，OP-06 本地镜像）：
 #   按 CI job 同序执行等价检查，输出与 CI 相同口径结果摘要：
 #     1. backend lint  —— ruff check .（PYTHONPATH=src）；
-#     2. backend tests —— pytest 收集（--collect-only -q，与 pytest -q 同发现口径）；
-#     3. （--frontend 触发）frontend tests —— web/ 下 vitest 单文件口径
+#     2. engine import isolation —— M4 B10 六前缀门禁（design D5，
+#        scripts/check_engine_imports.py，与 CI backend job 同步插步）；
+#     3. backend tests —— pytest 收集（--collect-only -q，与 pytest -q 同发现口径）；
+#     4. （--frontend 触发）frontend tests —— web/ 下 vitest 单文件口径
 #        （与 CI `npm test` 同运行时，单文件控制沙箱时长 ≤180s，§13.2）。
 #
 # 降级口径（§13.2/§13.3）：
@@ -151,7 +153,17 @@ def main() -> int:
     all_ok = all_ok and ok
     summaries.append((ok, summary))
 
-    # ---------- 2. backend tests（CI: pytest -q；本地默认收集口径） ----------
+    # ---------- 2. engine import isolation（CI: check_engine_imports.py；M4 B10 design D5） ----------
+    ok, summary, _ = _run_step(
+        "engine import isolation (check_engine_imports)",
+        [sys.executable, "scripts/check_engine_imports.py"],
+        PROJECT_ROOT,
+        {},
+    )
+    all_ok = all_ok and ok
+    summaries.append((ok, summary))
+
+    # ---------- 3. backend tests（CI: pytest -q；本地默认收集口径） ----------
     pytest_cmd = [sys.executable, "-m", "pytest"]
     pytest_cmd += ([] if args.full_pytest else ["--collect-only"]) + ["-q"]
     ok, summary, completed = _run_step(
@@ -172,7 +184,7 @@ def main() -> int:
     all_ok = all_ok and ok
     summaries.append((ok, summary))
 
-    # ---------- 3. frontend tests（可选；CI frontend job 的本地单文件子集） ----------
+    # ---------- 4. frontend tests（可选；CI frontend job 的本地单文件子集） ----------
     if args.frontend:
         vitest_target = WEB_DIR / args.vitest_file
         if not vitest_target.is_file():

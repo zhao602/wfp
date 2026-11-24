@@ -24,6 +24,7 @@
 
 import asyncio
 import contextlib
+import inspect
 import logging
 import os
 import signal
@@ -32,6 +33,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, Optional, Set
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.application.execution_runner import (
     InstanceRegistry,
     InstanceRuntime,
@@ -46,6 +48,9 @@ from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.domain.models.execution_job import ExecutionJob
 from orchestration_platform.domain.models.shared_state import SharedState
 from orchestration_platform.engine.scheduler import Scheduler
+from orchestration_platform.governance.metering.usage_recorder import (
+    get_usage_recorder,
+)
 from orchestration_platform.persistence.abstractions.execution_queue import (
     IExecutionQueue,
 )
@@ -208,7 +213,9 @@ async def run_claimed_job(
                 f"工作流定义获取失败: {job.definition_id}"
                 f"@{job.definition_version}: {exc}"
             ) from exc
-    compiled = await GraphCompiler().compile(definition)
+    compiled = await GraphCompiler(
+        settings=build_engine_settings()
+    ).compile(definition)
 
     # 2. 注册表登记（worker 本地 + 事件仓储双写）
     registry.register(
@@ -250,6 +257,8 @@ async def run_claimed_job(
         checkpoint_repository=checkpoint_repository,
         event_callback=NodeEventCallbackImpl(registry),
         cancellation_checker=cancellation_checker,
+        settings=build_engine_settings(),
+        usage_recorder=get_usage_recorder(),
     )
 
     # 5. 执行并记录（run_and_record 内部处理 succeeded/failed/waiting_review）
@@ -320,6 +329,22 @@ class ExecutionWorker:
         )
         self._stop_requested = False
         self._grace_deadline: Optional[float] = None
+        # D9 心跳 TTL 兼容探测（M5）：IExecutionQueue 为结构化协议——
+        # D9 前旧签名 heartbeat(job_id, worker_id) 的实现仍是合法协议
+        # 实现，构造期一次签名探测决定调用形态（新签名传 worker 租约
+        # TTL；旧签名双参调用，续租回退队列默认 TTL——不因协议演进而
+        # 运行期 TypeError）
+        try:
+            _hb_params = inspect.signature(self._queue.heartbeat).parameters
+            self._heartbeat_accepts_ttl = (
+                "lease_ttl_seconds" in _hb_params
+                or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD
+                    for p in _hb_params.values()
+                )
+            )
+        except (TypeError, ValueError):
+            self._heartbeat_accepts_ttl = False
         # M3 内部取消记账（design D4 内外部分流）：心跳发现标志取消
         # runner 前登记 job_id——process_job 的 CancelledError 分支据此
         # 吞掉内部取消走正常收口；未登记的 CancelledError = 外部取消，
@@ -604,9 +629,19 @@ class ExecutionWorker:
                 if not runner_task.done():
                     runner_task.cancel()  # 抢占式主路径
                 return
-            renewed = await self._queue.heartbeat(
-                job.job_id, self._worker_id
-            )
+            if self._heartbeat_accepts_ttl:
+                # D9（M5）：worker 租约 TTL 随心跳传递——续租尊重 worker
+                # 配置（lease_ttl_seconds），不再回退队列全局默认
+                renewed = await self._queue.heartbeat(
+                    job.job_id,
+                    self._worker_id,
+                    lease_ttl_seconds=self._lease_ttl,
+                )
+            else:
+                # D9 前旧签名队列（协议结构实现兼容）：双参调用
+                renewed = await self._queue.heartbeat(
+                    job.job_id, self._worker_id
+                )
             if not renewed:
                 logger.warning(
                     "心跳续租失败（租约易主或作业非 running）: job_id=%s",

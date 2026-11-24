@@ -15,6 +15,7 @@ from typing import List, Tuple
 
 import yaml
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.domain.errors import WF_YAML_SYNTAX_ERROR
 from orchestration_platform.domain.models.common import ValidationIssue
 from orchestration_platform.domain.models.enums import Severity
@@ -80,7 +81,9 @@ def validate_definition(definition: WorkflowDefinition) -> List[ValidationIssue]
 async def compile_definition(definition: WorkflowDefinition) -> CompiledWorkflow:
     """编译为 CompiledWorkflow（复用 GraphCompiler，拓扑不合法抛 WorkflowInvalidError）。"""
     try:
-        return await GraphCompiler().compile(definition)
+        return await GraphCompiler(
+            settings=build_engine_settings()
+        ).compile(definition)
     except Exception as error:
         raise WorkflowInvalidError(str(error)) from error
 

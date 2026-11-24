@@ -17,6 +17,7 @@ from typing import List, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import DomainError
 from orchestration_platform.engine.plugin_nodes.plugin_node_loader import (
@@ -31,8 +32,8 @@ _logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["插件节点管理"])
 
-# 单例加载器（进程内）
-_loader = PluginNodeLoader()
+# 单例加载器（进程内；M4 B10：settings 经 wiring 注入，env 覆盖生效）
+_loader = PluginNodeLoader(settings=build_engine_settings())
 
 
 # ---------------------------------------------------------------------------

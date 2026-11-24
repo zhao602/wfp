@@ -1,8 +1,9 @@
 # =============================================================================
 # LangGraph 适配器（engine/adapter/langgraph_adapter.py）
 #
-# 职责：实现 IWorkflowEngine 接口，将 CompiledWorkflow 编译为 LangGraph StateGraph，
-#      驱动执行并完成检查点落盘。
+# 职责：将 CompiledWorkflow 编译为 LangGraph StateGraph，驱动执行并完成
+#      检查点落盘（LangGraph 第二运行时适配器；原引擎契约 Protocol 已随
+#      M4 B10 移除，本类即双运行时边界的适配层公开面）。
 # 设计意图（对应 design 2.5.2、spec 4.4.3、验收 B7）：
 #   1. 此目录是全仓库唯一允许 import langgraph 的位置；
 #   2. 适配器不含业务规则——节点语义经执行器注册表单源复用（INV-B4-01），
@@ -26,7 +27,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     INSTANCE_NOT_FOUND,
     INSTANCE_NOT_WAITING,
@@ -57,6 +57,7 @@ from orchestration_platform.domain.models.execution_instance import (
 from orchestration_platform.domain.models.shared_state import SharedState
 from orchestration_platform.domain.models.workflow_definition import WorkflowDefinition
 from orchestration_platform.engine.abstractions.compiled_workflow import CompiledWorkflow
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.adapter.langgraph_state_mapping import (
     LangGraphStateMapping,
     _KEY_BRANCH_SELECTIONS,
@@ -67,6 +68,7 @@ from orchestration_platform.engine.adapter.langgraph_state_mapping import (
     _KEY_ROUND_INDEX,
 )
 from orchestration_platform.engine.graph_compiler import GraphCompiler
+from orchestration_platform.engine.node_executor_registry import NodeExecutorRegistry
 from orchestration_platform.engine.nodes.base import (
     NodeExecutionContext,
     NodeExecutionResult,
@@ -96,10 +98,10 @@ def is_langgraph_available() -> bool:
 
 
 class LangGraphAdapter:
-    """IWorkflowEngine 的 LangGraph 实现。
+    """LangGraph 双运行时适配器。
 
     此类是全仓库唯一直接依赖 langgraph 的模块。
-    业务代码通过 IWorkflowEngine 接口调用，不感知底层框架。
+    业务代码不感知底层框架，经本类公开方法调用第二运行时。
     """
 
     def __init__(
@@ -107,26 +109,29 @@ class LangGraphAdapter:
         graph_compiler: Optional[GraphCompiler] = None,
         executor_registry: Optional[Any] = None,
         run_log_recorder: Optional[Any] = None,
+        settings: Optional[EngineSettings] = None,
     ) -> None:
         """构造适配器实例。
 
         参数：
             graph_compiler   —— 图编译器；缺省新建。
             executor_registry —— 节点执行器注册表（节点语义单源，INV-B4-01）；
-                                缺省时延迟取路由侧模块级注册表（生产同源实例）；
+                                缺省时引擎内新建空 NodeExecutorRegistry()
+                                （M4 B10：api 延迟导入已删，生产由宿主显式注入）；
                                 矩阵 harness 显式注入与内置引擎同一实例。
             run_log_recorder —— 运行日志采集门面（可选；缺省 None 零采集）。
+            settings         —— 引擎运行配置（M4 B10：缺省 None →
+                                EngineSettings() 默认值；宿主注入生效 env 覆盖）。
         """
-        self._compiler = graph_compiler or GraphCompiler()
+        self._settings = settings or EngineSettings()
+        self._compiler = graph_compiler or GraphCompiler(settings=self._settings)
         if executor_registry is None:
-            # 延迟导入（构造期）：与 execution_instance_router 生产注册表同源
-            from orchestration_platform.api.routers import execution_instance_router
-
-            executor_registry = execution_instance_router._executor_registry
+            # M4 B10：api 惰性导入已删——缺省引擎内新建空注册表，
+            # 生产构造点（application_factory）显式注入容器注册表。
+            executor_registry = NodeExecutorRegistry()
         self._registry = executor_registry
         # 求值器类级复用（DC-B4-02）：与 scheduler 同一 RestrictedExpressionEvaluator
         self._expression_evaluator = RestrictedExpressionEvaluator()
-        self._settings = get_settings()
         self._run_log_recorder = run_log_recorder
         # 编译缓存：definition_id -> CompiledWorkflow
         self._compiled_cache: Dict[str, CompiledWorkflow] = {}
@@ -134,7 +139,7 @@ class LangGraphAdapter:
         self._instances: Dict[str, ExecutionInstance] = {}
 
     # ------------------------------------------------------------------
-    # IWorkflowEngine 实现
+    # 适配器公开引擎能力（compile/start；resume 系为子集外抛错桩）
     # ------------------------------------------------------------------
     async def compile(self, definition: WorkflowDefinition) -> CompiledWorkflow:
         """编译工作流定义为 CompiledWorkflow（委托 GraphCompiler）。"""

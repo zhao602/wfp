@@ -8,7 +8,7 @@
 
 - **B 档定义**：孤儿模块但与治理/集成功能关联，须逐项确认接线意图后方可清理（spec 术语表）。
 - **用户裁决（2026-10-18）**：B 档本轮全部不动，建立本台账并逐文件打 `TODO(tech-debt)` 标记；下个迭代安排基于 APM 链路追踪的专项排查，确认无调用后分批清理。
-- **与 A/C 档关系**：A 档 8 组已在本轮清理（verify×16、config.py、parallel_executor、checkpoint_compressor、workflow_compiler、空壳包×2、create_governance_components、bugs）；C1（langgraph 链）裁决保留并已固化定位注释；C2（9 个 SDD 目录）已归档。
+- **与 A/C 档关系**：A 档 8 组已在本轮清理（verify×16、config.py、parallel_executor、checkpoint_compressor、workflow_compiler、空壳包×2、create_governance_components、bugs）；C1（langgraph 链）裁决保留并已固化定位注释（C1 链成员 workflow_engine.py 后经 M4 B10 移除，见 §3 注记）；C2（9 个 SDD 目录）已归档。
 - **标记格式**：`# TODO(tech-debt): B档候选孤儿（族群 Bx），待 APM 链路追踪专项排查确认无调用后清理，见 docs/tech-debt-ledger.md`（Python 3.10 无 `@Deprecated` 装饰器，统一注释形式）。
 
 ## 2. 用户裁决记录（2026-10-18）
@@ -41,7 +41,7 @@
 | B13 前端配置（0） | web/.codeartsdoer/（配置目录非源码） | **仅台账** | 前端 agent 独立工程上下文，非重复配置（2026-10-18 复核维持） |
 | B14 企业连接器族（4，复扫新发现） | data_source_connectors/enterprise/abstractions/{__init__,credential_store}.py、enterprise/{erp,oa}_connector.py | 已标记 | spec 表外新发现；enterprise_connector_enabled 开关守护的连接器族子集——erp/oa 两连接器未被 registry 注册，须确认交付计划 |
 | B15 verify 残留暴露族（4，批次 3 副作用；原 5） | application/execution_instance_service.py、context_engine/context_manager.py、integrations/data_source/readonly_data_source_client.py、observability/governance_metrics.py | 已标记 | 删除 16 个 verify_*.py 后暴露的真孤儿（此前仅被验证脚本引用）；execution_instance_service 疑似被 router 直接绕过的服务层、governance_metrics 疑似被重构遗留——须重点确认接线意图（structured_logger 已销项，见第 4 章） |
-| C1 链成员（1） | engine/abstractions/workflow_engine.py | 已标记（族群记 C1） | langgraph 孤儿链三文件之一（IWorkflowEngine Protocol）；同链 langgraph_adapter.py 已有 C1 定位声明注释（不重复打标记）、langgraph_state_mapping.py 被 adapter 引用不属孤儿 |
+| C1 链成员（1） | engine/abstractions/workflow_engine.py | 已标记（族群记 C1） | langgraph 孤儿链三文件之一（IWorkflowEngine Protocol）；同链 langgraph_adapter.py 已有 C1 定位声明注释（不重复打标记）、langgraph_state_mapping.py 被 adapter 引用不属孤儿（**2026-11-23 M4 B10 销项**：Protocol 全仓零生产引用，文件删除；链余 adapter/state_mapping 两文件随双运行时保留） |
 
 ## 4. 复扫排除记录（不标记不清理）
 
@@ -66,12 +66,12 @@
 2. **判定标准**：APM 链路数据中零调用的 B 档模块 → 进入清理候选；有调用的 → 补齐接线并从台账销项。
 3. **清理流程**：按族群分批（建议顺序：B15 → B14 → B1~B12，B15/B14 证据最新鲜）；每批沿用本轮双门槛验证（沙箱静态 + 用户环境 pytest/装配冒烟）。
 4. **责任移交**：本台账 + `scan_orphans.py` 口径脚本移交下迭代任务；清理前须先更新本台账销项。
-5. **langgraph 链（C1）重构**：单独排期——补齐真实引擎接入或整链移除并同步更新隔离约束表述（详见 langgraph_adapter.py 头部 TODO(重构) 注释）。
+5. **langgraph 链（C1）重构**：单独排期——补齐真实引擎接入或整链移除并同步更新隔离约束表述（详见 langgraph_adapter.py 头部 TODO(重构) 注释）。（进展：B6 双运行时已使 adapter 成为受 `langgraph_runtime_enabled` 开关守护的真实链路；C1 链成员 workflow_engine.py 已于 M4 B10 移除，2026-11-23，见 §3 注记。）
 
 ## 6. 与 spec 预估差异说明
 
 - spec 预估：B 档约 47 个（13 族群，基于旧扫描口径）。
-- 实际标记：**57 个**（15 族群 + C1 链成员 1 个）——后经 workflow_run_logging 接线销项 1 个（structured_logger），又经 arch_review_v2_tasks G3「RBAC 落库」接线销项 B2 三族 9 文件（role/user/tenant，2026-11-18，见第 4 章），再经 roadmap B0/D3「治理链断链修复」接线销项 B1 族三拦截器（audit/budget/metering，2026-11-21，见第 4 章），现存量 **44 个**。
+- 实际标记：**57 个**（15 族群 + C1 链成员 1 个）——后经 workflow_run_logging 接线销项 1 个（structured_logger），又经 arch_review_v2_tasks G3「RBAC 落库」接线销项 B2 三族 9 文件（role/user/tenant，2026-11-18，见第 4 章），再经 roadmap B0/D3「治理链断链修复」接线销项 B1 族三拦截器（audit/budget/metering，2026-11-21，见第 4 章），再经 M4 B10 移除 C1 链成员 workflow_engine.py（IWorkflowEngine Protocol，2026-11-23，见 §3 注记），现存量 **43 个**。
 - 差异构成：+4（B14 enterprise 族，spec 表外）+5（B15 verify 残留暴露族，批次 3 副作用）+2（B2 postgres/__init__.py、B5 sso/abstractions/__init__.py、B8/B11 __init__.py 等包文件按"整包实体模块全孤儿才标记"规则纳入）等口径细化。
 - 扫描脚本口径修正：design 2.7 原型双重前缀 bug 修正后，孤儿判定更精确（含 __init__.py 包名推导）。
 

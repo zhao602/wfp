@@ -21,6 +21,7 @@ from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.domain.errors import (
     STATE_CHECKPOINT_NOT_FOUND,
     WF_VALIDATION_FAILED,
@@ -129,7 +130,9 @@ class ReplayExecutor:
                 from orchestration_platform.engine.graph_compiler import GraphCompiler
 
                 definition = await self._workflow_repository.get(definition_id)
-                return await GraphCompiler().compile(definition)
+                return await GraphCompiler(
+                    settings=build_engine_settings()
+                ).compile(definition)
             except Exception:
                 # 定义未入库（API 直启 yaml 场景）或仓储/编译失败
                 # → 落入下方统一拒绝（重放不因定义源故障而伪造可执行上下文）

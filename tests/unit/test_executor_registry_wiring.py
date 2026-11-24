@@ -19,6 +19,16 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+# 2026-11-23 M4 T7 隔离加固：router（经 execution_runner）必须在模块级
+# （收集期，无 patch 上下文）首次导入——若首次导入发生在下方 get_settings
+# 的 MagicMock patch 作用域内（子集运行时本文件最先触发导入），
+# execution_runner/engine_wiring 等模块的
+# `from ...configuration.settings import get_settings` 将永久绑定 Mock，
+# 污染同进程后续全部测试（实测 asyncio.wait_for 收到 MagicMock 超时后
+# `MagicMock <= 0` TypeError）。
+from orchestration_platform.api.routers.execution_instance_router import (
+    _build_executor_registry,
+)
 from orchestration_platform.domain.errors import (
     CODE_NODE_DISABLED,
     LLM_NODE_DISABLED,
@@ -30,6 +40,7 @@ from orchestration_platform.domain.models.node_configurations import (
 )
 from orchestration_platform.domain.models.node_definition import NodeDefinition
 from orchestration_platform.domain.models.shared_state import SharedState
+from orchestration_platform.engine.abstractions.engine_config import EngineSettings
 from orchestration_platform.engine.nodes.base import NodeExecutionContext
 from orchestration_platform.engine.nodes.code_node_executor import CodeNodeExecutor
 from orchestration_platform.engine.nodes.llm_node_executor import LlmNodeExecutor
@@ -94,10 +105,6 @@ class TestRegistryWiring:
             "orchestration_platform.configuration.settings.get_settings",
             return_value=_full_llm_settings(),
         ):
-            from orchestration_platform.api.routers.execution_instance_router import (
-                _build_executor_registry,
-            )
-
             registry = _build_executor_registry()
 
         assert registry is not None
@@ -159,10 +166,6 @@ class TestFactoryFailureSkip:
             "orchestration_platform.application.execution_runner._build_llm_client",
             return_value=None,
         ):
-            from orchestration_platform.api.routers.execution_instance_router import (
-                _build_executor_registry,
-            )
-
             with caplog.at_level("WARNING"):
                 registry = _build_executor_registry()
 
@@ -179,27 +182,21 @@ class TestFactoryFailureSkip:
 
 
 class TestSwitchDecoupling:
-    """T2-4：注册与开关解耦（DC-08：注册过程零开关读取）。"""
+    """T2-4：注册与开关解耦（DC-08：注册过程零开关读取）。
+
+    M4 B10 改写（2026-11-23）：开关经 EngineSettings 构造注入（引擎域不再
+    读 configuration.get_settings）；改 patch application.execution_runner.
+    build_engine_settings 注入缝隙，断言不变——两种开关状态下注册结果一致。
+    """
 
     def test_registration_same_for_switch_true_and_false(self):
-        from orchestration_platform.api.routers.execution_instance_router import (
-            _build_executor_registry,
-        )
-
         for enabled in (False, True):
-            llm_settings = _full_llm_settings(
-                llm_node_enabled=enabled,
-                code_node_enabled=enabled,
-            )
             with patch(
-                "orchestration_platform.configuration.settings.get_settings",
-                return_value=llm_settings,
-            ), patch(
-                "orchestration_platform.engine.nodes.llm_node_executor.get_settings",
-                return_value=llm_settings,
-            ), patch(
-                "orchestration_platform.engine.nodes.code_node_executor.get_settings",
-                return_value=llm_settings,
+                "orchestration_platform.application.execution_runner.build_engine_settings",
+                return_value=EngineSettings(
+                    llm_node_enabled=enabled,
+                    code_node_enabled=enabled,
+                ),
             ):
                 registry = _build_executor_registry()
 
@@ -220,10 +217,6 @@ class TestExecutionSemantics:
             "orchestration_platform.configuration.settings.get_settings",
             return_value=_full_llm_settings(),
         ):
-            from orchestration_platform.api.routers.execution_instance_router import (
-                _build_executor_registry,
-            )
-
             registry = _build_executor_registry()
 
         # 调度取到执行器：get_executor 不抛（注册表内已登记，非 NODE_TOOL_NOT_FOUND）

@@ -54,12 +54,14 @@ async def _compile_and_execute(
 ):
     """单事件循环内完成编译 + 调度执行（避免多次 asyncio.run 建环）。"""
     compiled = await compile_definition(definition)
-    from orchestration_platform.engine.scheduler import Scheduler
+    from orchestration_platform.application.engine_wiring import build_engine_settings
     from orchestration_platform.domain.models.shared_state import SharedState
+    from orchestration_platform.engine.scheduler import Scheduler
 
     scheduler = Scheduler(
         executor_registry=registry,
         checkpoint_repository=checkpoint_repository,
+        settings=build_engine_settings(),
     )
     final_state = await scheduler.execute(
         compiled,

@@ -32,6 +32,7 @@ from orchestration_platform.api.instance_read_through import (
     record_instance_cancelled_event,
     resolve_event_reader,
 )
+from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.application.execution_runner import (
     ExecutionSubmitter,
     InstanceRegistry,
@@ -56,6 +57,7 @@ from orchestration_platform.application.execution_runner import (
     build_execution_queue,
     run_and_record,
 )
+from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     INSTANCE_CANCEL_CONFLICT,
     STATE_CHECKPOINT_CORRUPTED,
@@ -64,9 +66,13 @@ from orchestration_platform.domain.errors import (
     ResourceNotFoundError,
 )
 from orchestration_platform.domain.models.enums import ControlFlowKind, NodeType
+from orchestration_platform.domain.models.execution_job import ExecutionJob
 from orchestration_platform.domain.models.shared_state import SharedState
 from orchestration_platform.engine.abstractions.domain_event_publisher import (
     IDomainEventPublisher,
+)
+from orchestration_platform.governance.metering.usage_recorder import (
+    get_usage_recorder,
 )
 from orchestration_platform.governance.tenant.quota_gate import (
     get_quota_gate,
@@ -173,30 +179,42 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
     tenant_id: Optional[str] = getattr(request.state, "tenant_id", None)
 
     # 并发配额闸门（roadmap B4，DC-B4-02）：并发活跃实例数达配额上限即
-    # 429 拒绝（TenantQuotaExceededError → handler 映射）；唯一 await =
-    # get_quota，count→check→raise→register 全同步块（事件循环单线程原子，
-    # 超配额 100% 拒绝）；拒绝路径零副作用：不注册、不解析、不编译、不执行。
-    # tenant_id 为 None（治理降级/cron 无租户）不闸门。
+    # 429 拒绝（TenantQuotaExceededError → handler 映射）；拒绝路径零副作用：
+    # 不注册、不解析、不编译、不执行。tenant_id 为 None（治理降级/cron
+    # 无租户）不闸门。in_process 计数与校验间无 await（事件循环单线程原子，
+    # 超配额 100% 拒绝）；M5 worker 口径（design D6）：worker 模式 API 注册表
+    # 为空（提交不注册），计数走队列落库口径（pending/running 作业数）——
+    # count→check→enqueue 跨 await 的准入竞态与既有窗口同类（best-effort
+    # 诚实口径，deploy.md 披露）。
+    worker_mode = get_settings().execution_mode == "worker"
     quota_gate = get_quota_gate()
     if quota_gate is not None and tenant_id is not None:
-        await quota_gate.ensure_capacity(
-            tenant_id,
-            _instance_registry.count_active_by_tenant(tenant_id),
-        )
+        if worker_mode:
+            active_count = await _count_active_jobs_by_tenant(tenant_id)
+        else:
+            active_count = _instance_registry.count_active_by_tenant(tenant_id)
+        await quota_gate.ensure_capacity(tenant_id, active_count)
 
     rt = InstanceRuntime(
         instance_id=instance_id,
         definition_id=body.definition_id,
         tenant_id=tenant_id,
     )
-    _instance_registry.register(rt)
+    # M5 陈旧注册表消除（design D2）：worker 模式不注册——API 进程注册表
+    # 保持空（M2 design D5 的 404 窗口径成立，读穿透对全端点生效）；
+    # rt 仍构造并传给 submit（worker 分支读 tenant_id/definition_id；
+    # 提交侧落 INSTANCE_QUEUED 后窗口期 GET 推导 pending，不再 404）。
+    if not worker_mode:
+        _instance_registry.register(rt)
 
     try:
         from orchestration_platform.workflow.yaml_workflow_parser import YamlWorkflowParser
         from orchestration_platform.engine.graph_compiler import GraphCompiler
 
         definition = YamlWorkflowParser().parse(body.yaml_text)
-        compiled = await GraphCompiler().compile(definition)
+        compiled = await GraphCompiler(
+            settings=build_engine_settings()
+        ).compile(definition)
         # 恢复上下文缓存（arch_review_v2 3.4，CHG-07）：编译产物与 trace 落注册表
         rt.compiled = compiled
         rt.trace_id = trace_id
@@ -259,6 +277,8 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
             event_callback=callback,
             run_log_recorder=run_log_recorder,
             domain_event_publisher=_domain_event_publisher,
+            settings=build_engine_settings(),
+            usage_recorder=get_usage_recorder(),
         )
 
         # M1 spawn 收口：统一提交器提交（in_process 默认 =
@@ -309,8 +329,20 @@ async def get_instance(instance_id: str) -> dict:
 
 @router.get("/instances/{instance_id}/events")
 async def get_instance_events(instance_id: str, include_voided: bool = True) -> list:
-    """查询实例事件序列。"""
-    return _instance_registry.get_events(instance_id)
+    """查询实例事件序列。
+
+    M5 worker 读穿透（design D7）：注册表未命中 → 统一读取器回退事件
+    仓储（worker 进程落账的事件流）；均未命中如实 404。include_voided
+    两路径一致忽略（历史契约：注册表路径不筛除，读穿透路径沿用
+    list_for_instance 缺省全量）。
+    """
+    try:
+        return _instance_registry.get_events(instance_id)
+    except HTTPException:
+        reader = await resolve_event_reader(
+            instance_id, registry=_instance_registry
+        )
+        return await reader.read_events(instance_id)
 
 
 @router.get("/instances/{instance_id}/events/stream")
@@ -353,6 +385,26 @@ def _get_execution_queue() -> Optional[IExecutionQueue]:
         _execution_queue_failed = True
         logging.warning("执行队列构造失败，worker 模式取消不可用", exc_info=True)
         return None
+
+
+async def _count_active_jobs_by_tenant(tenant_id: str) -> int:
+    """worker 模式配额计数：队列落库口径（M5 design D6）。
+
+    队列构造/查询失败降级回注册表计数并告警（可用性优先：worker 模式
+    注册表恒空 → 降级计数 ≈ 0，配额近似旁路——deploy.md 诚实披露）。
+    """
+    queue = _get_execution_queue()
+    if queue is None:
+        return _instance_registry.count_active_by_tenant(tenant_id)
+    try:
+        return await queue.count_active_by_tenant(tenant_id)
+    except Exception:
+        logging.warning(
+            "队列配额计数失败，降级注册表计数: tenant_id=%s",
+            tenant_id,
+            exc_info=True,
+        )
+        return _instance_registry.count_active_by_tenant(tenant_id)
 
 
 async def _cancel_worker_instance(instance_id: str) -> Optional[dict]:
@@ -455,6 +507,73 @@ async def cancel_instance(instance_id: str) -> dict:
     }
 
 
+async def _read_worker_node_outputs(instance_id: str) -> Dict[str, Any]:
+    """worker 模式 succeeded 输出读取：检查点快照 node_outputs（M5 D7）。
+
+    检查点快照是唯一权威输出存储（INV-08 口径——注册表 final_state 为
+    进程内存态，worker 执行实例的输出仅存在于检查点快照）；仓储不可达/
+    无检查点/读取失败 → {} + 告警（镜像 in_process「重启后老实例 → {}」
+    的可用性优先口径）。
+    """
+    checkpoint_repo = _acquire_checkpoint_repository()
+    if checkpoint_repo is None:
+        logging.warning(
+            "检查点仓储不可用，worker 模式结果输出回退空: instance_id=%s",
+            instance_id,
+        )
+        return {}
+    try:
+        checkpoint = await checkpoint_repo.latest_for_instance(instance_id)
+    except Exception:
+        logging.warning(
+            "检查点快照读取失败，worker 模式结果输出回退空: instance_id=%s",
+            instance_id,
+            exc_info=True,
+        )
+        return {}
+    if checkpoint is None:
+        logging.warning(
+            "实例无可用检查点快照，worker 模式结果输出回退空: instance_id=%s",
+            instance_id,
+        )
+        return {}
+    node_outputs = getattr(
+        getattr(checkpoint, "state_snapshot", None), "node_outputs", None
+    )
+    if isinstance(node_outputs, dict):
+        return dict(node_outputs)
+    return {}
+
+
+async def _results_worker_instance(instance_id: str) -> Optional[dict]:
+    """worker 模式结果读穿透：事件推导快照 + 检查点快照输出（M5 D7）。
+
+    非终态 → {outputs: None}（轮询友好契约）；succeeded → 最新检查点
+    state_snapshot.node_outputs；其余终态 → {}（镜像 in_process 仅
+    succeeded 携带输出）；finished_at 取快照留痕时刻。快照不可见 →
+    None（调用方维持 404）。
+    """
+    snapshot = await read_instance_snapshot(instance_id)
+    if snapshot is None:
+        return None
+    status = str(snapshot.get("status", ""))
+    if status not in _TERMINAL_STATUSES:
+        return {
+            "instance_id": instance_id,
+            "status": status,
+            "outputs": None,
+        }
+    outputs: Dict[str, Any] = {}
+    if status == "succeeded":
+        outputs = await _read_worker_node_outputs(instance_id)
+    return {
+        "instance_id": instance_id,
+        "status": status,
+        "outputs": outputs,
+        "finished_at": snapshot.get("finished_at"),
+    }
+
+
 @router.get("/instances/{instance_id}/results")
 async def get_instance_results(instance_id: str) -> dict:
     """查询实例执行结果（B2 嵌入 SDK：取结果端点）。
@@ -465,8 +584,19 @@ async def get_instance_results(instance_id: str) -> dict:
       run_and_record 缓存的终态共享状态 node_outputs（仅 succeeded
       且 final_state 非 None 有值；failed/cancelled/rolled_back 或
       重启后老实例 → {}）。
+
+    M5 worker 读穿透（design D7）：注册表未命中 → 事件推导快照分支；
+    succeeded 输出取检查点仓储最新快照 node_outputs（检查点快照是唯一
+    权威输出存储，INV-08 口径），失败回退 {} 告警——与 in_process
+    「重启后老实例 → {}」同构。
     """
-    rt = _instance_registry.get(instance_id)
+    try:
+        rt = _instance_registry.get(instance_id)
+    except HTTPException:
+        result = await _results_worker_instance(instance_id)
+        if result is not None:
+            return result
+        raise
 
     if rt.status not in _TERMINAL_STATUSES:
         return {
@@ -523,6 +653,8 @@ async def _resolve_recovery_checkpoint(checkpoint_repo, rt: InstanceRuntime):
         Scheduler(
             executor_registry=_executor_registry,
             checkpoint_repository=checkpoint_repo,
+            settings=build_engine_settings(),
+            usage_recorder=get_usage_recorder(),
         ),
     )
     service._instances[rt.instance_id] = ExecutionInstance(
@@ -539,6 +671,124 @@ async def _resolve_recovery_checkpoint(checkpoint_repo, rt: InstanceRuntime):
     return await checkpoint_repo.latest_for_instance(rt.instance_id)
 
 
+async def _enqueue_worker_resume_job(
+    instance_id: str,
+    checkpoint_id: str,
+    *,
+    definition_id: str,
+    trigger_source: str,
+    idempotency_scope: str,
+) -> None:
+    """worker 模式续跑作业入队（M5 design D8；/recover 与 /review 共用）。
+
+    直接 ExecutionJob 构造 + queue.enqueue（不经 ExecutionSubmitter.
+    submit——不落 INSTANCE_QUEUED：实例已在事件流可见，非新提交窗口）。
+    tenant_id/definition_version/yaml_text 取 find_latest_by_instance
+    （origin 作业，T7 载荷补齐——worker 重建上下文正源）；无历史作业时
+    载荷降级告警（yaml_text=None → worker 侧按 definition_id 工作流
+    仓储兜底，版本 None → 最新版本，保真降级入档）。幂等键 =
+    {instance_id}:{idempotency_scope}:{checkpoint_id}（确定性新键——
+    规避 v1_8 全局唯一索引与原作业 instance_id 键冲突；同键重入队
+    幂等：local_file 非终态拦截 / PG ON CONFLICT 返回既有）。
+    """
+    queue = _get_execution_queue()
+    if queue is None:
+        raise HTTPException(
+            status_code=500, detail="执行队列不可用，无法续跑实例",
+        )
+    origin = None
+    try:
+        origin = await queue.find_latest_by_instance(instance_id)
+    except Exception:
+        logging.warning(
+            "origin 作业查询失败（续跑载荷降级）: instance_id=%s",
+            instance_id,
+            exc_info=True,
+        )
+    if origin is None:
+        logging.warning(
+            "实例无历史队列作业，续跑作业不携带 yaml_text/版本"
+            "（worker 侧按 definition_id 仓储兜底）: instance_id=%s",
+            instance_id,
+        )
+    job = ExecutionJob(
+        job_id=str(uuid.uuid4()),
+        instance_id=instance_id,
+        tenant_id=getattr(origin, "tenant_id", None),
+        definition_id=definition_id,
+        definition_version=getattr(origin, "definition_version", None),
+        yaml_text=getattr(origin, "yaml_text", None),
+        initial_inputs={},
+        trigger_source=trigger_source,
+        trace_id=str(getattr(origin, "trace_id", "") or ""),
+        resume_checkpoint_id=checkpoint_id,
+        idempotency_key=f"{instance_id}:{idempotency_scope}:{checkpoint_id}",
+    )
+    await queue.enqueue(job)
+
+
+async def _recover_worker_instance(instance_id: str) -> Optional[dict]:
+    """worker 模式恢复：快照守卫 + 检查点续跑作业入队（M5 design D7/D8）。
+
+    - 快照不可见 → None（调用方维持 404）；
+    - running → 409 仍在运行（作业在途，镜像 in_process 任务在途拒绝）；
+    - waiting_review → 409「请提交审核决策」——worker 进程无法代持注册
+      表挂起态（与 in_process 的重挂起分支有意分歧，deploy.md §10.3
+      披露）；
+    - review_timeout → 409（门决策已留痕，从门检查点续跑 = 绕过审核
+      决策，安全优先拒绝；分歧同上入档）；
+    - pending/终态 → 检查点续跑流：latest_for_instance（None → 500
+      「无可用检查点」镜像 in_process；pending 窗口快照必无检查点——
+      提交即入队未运行，500 即「无可恢复位点」的如实口径；终态重入队
+      同键幂等）。
+    """
+    snapshot = await read_instance_snapshot(instance_id)
+    if snapshot is None:
+        return None
+    status = str(snapshot.get("status", ""))
+    if status == "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"实例 {instance_id} 仍在运行，禁止恢复",
+        )
+    if status == "waiting_review":
+        raise HTTPException(
+            status_code=409,
+            detail=f"等待审核中的实例 {instance_id} 请提交审核决策",
+        )
+    if status == "review_timeout":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"实例 {instance_id} 已按超时动作挂起（review_timeout），"
+                "无法恢复"
+            ),
+        )
+    checkpoint_repo = _acquire_checkpoint_repository()
+    if checkpoint_repo is None:
+        raise HTTPException(
+            status_code=500, detail="检查点仓储不可用，无法恢复",
+        )
+    checkpoint = await checkpoint_repo.latest_for_instance(instance_id)
+    if checkpoint is None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"实例 {instance_id} 无可用检查点，无法恢复",
+        )
+    await _enqueue_worker_resume_job(
+        instance_id,
+        checkpoint.checkpoint_id,
+        definition_id=str(snapshot.get("definition_id", "") or ""),
+        trigger_source="recover",
+        idempotency_scope="recover",
+    )
+    return {
+        "instance_id": instance_id,
+        "resumed_from_checkpoint_id": checkpoint.checkpoint_id,
+        "status": "running",
+    }
+
+
 @router.post("/instances/{instance_id}/recover")
 async def recover_instance(instance_id: str) -> dict:
     """故障恢复：从最近可用检查点续跑实例（CHG-07，卡 A1 契约）。
@@ -547,8 +797,18 @@ async def recover_instance(instance_id: str) -> dict:
     - 出参 {instance_id, resumed_from_checkpoint_id, status}；
     - INSTANCE_NOT_FOUND → 404；STATE_CHECKPOINT_CORRUPTED → 500（复用既有错误码）；
     - 不入 rollback_replay_router（Z-4，F4 属 W5–7 桩现状冻结）。
+
+    M5 worker 读穿透（design D7/D8）：注册表未命中 → 快照守卫 + 检查点
+    续跑作业入队（worker 认领执行）；waiting_review/review_timeout →
+    409（与 in_process 的重挂起分支有意分歧，deploy.md §10.3 披露）。
     """
-    rt = _instance_registry.get(instance_id)
+    try:
+        rt = _instance_registry.get(instance_id)
+    except HTTPException:
+        result = await _recover_worker_instance(instance_id)
+        if result is not None:
+            return result
+        raise
 
     if rt.compiled is None:
         raise HTTPException(
@@ -637,6 +897,8 @@ async def recover_instance(instance_id: str) -> dict:
         executor_registry=_executor_registry,
         checkpoint_repository=checkpoint_repo,
         event_callback=callback,
+        settings=build_engine_settings(),
+        usage_recorder=get_usage_recorder(),
     )
     # M1 spawn 收口：统一提交器提交（in_process 默认等价路径）
     await _execution_submitter.submit(
