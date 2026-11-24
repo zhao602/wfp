@@ -27,6 +27,7 @@ classifiers = [
 # 运行时依赖：Web 服务、配置管理、YAML 解析、编排引擎、HTTP 客户端、数据库驱动
 dependencies = [
     "fastapi>=0.110,<0.136",  # 上界：starlette 1.x 移除 add_event_handler，application_factory 7 处调用点不兼容；门禁实测 0.135.0 + starlette 0.52.1
+    "starlette>=0.46,<0.53",  # 显式上界：fastapi 0.135.4 对 starlette 仅要求 >=0.46 无上界，pip 会解析到移除 add_event_handler 的 starlette 1.x（CI run 45330343610 实测）；封顶至门禁实测 0.52.1
     "uvicorn[standard]>=0.27",
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
