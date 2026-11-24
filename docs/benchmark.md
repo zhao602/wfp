@@ -40,6 +40,27 @@
 分项明细（min/max/mean、客户端/服务端分量、事件类型分布）见
 `results/*.json`；SSE setup 段执行耗时 45.184s（信息项，不入表）。
 
+### 3.1 B12 后复测（2026-11-24，A/B 同窗 worktree 对照）
+
+B12（roadmap-v3 P3 数据分块批，含检查点写路径 D7-lite 改造）落地后，四基准以
+A/B 同窗配对复测：A = 干净基线 worktree（`1ef7576`），B = A + B12 变更集，
+同机同窗顺序执行（M5 方法，消环境漂移）：
+
+| 基准 | p50 (ms) A → B | p95 (ms) A → B | 备注 |
+|---|---|---|---|
+| linear_50 | 21543.8 → 5042.2（−77%） | 32799.0 → 7501.6（−77%） | D7.2 索引消除 O(n²) 重解析 |
+| parallel_8 | 17324.4 → 5724.9（−67%） | 17780.0 → 5959.2（−67%） | 同上 |
+| pipeline_100k | 27881.4 → 16351.8（−41%） | 28297.4 → 16734.9（−41%） | 4 轮/侧 |
+| sse_1000 | 81.4 → 68.0（−16%） | 86.1 → 71.5（−17%） | setup 执行 45.1s → 11.0s（4.1×） |
+
+- pipeline_100k 内存（交错序列）：A = 248.7（冷）/ 226.4（暖稳 ×2），
+  **B = 140.7 ×2（零方差）**——memory gate ≤150MB 达成（B12 spec §5.1），
+  spill-to-disk 方案裁撤；绝对改善 −85.7MB（暖稳口径）/ −108.0MB（冷基线口径）。
+- sse_1000 p95 首测 105.6ms 系单轮环境尖峰（3 轮 nearest-rank p95 = 最差轮），
+  复测 71.5ms 界定；回放读路径 B12 未触碰，差异不构成回退。
+- 运行间方差提示：pipeline_100k 内存 A 侧冷/暖差 22.3MB（OS 缓存/分配器状态），
+  B 侧因瞬态分配源消除呈零方差；跨会话绝对数字比较须同窗 A/B。
+
 ## 4. 合成数据标注（非真实业务数据）
 
 - 确定性生成（`_bench_common.make_rows`）：`{id, category(8 桶 cat_0..cat_7),
@@ -53,12 +74,15 @@
 
 以下三点为本批次实测确认的平台行为，直接影响上表数字的解读：
 
-1. **local_file 检查点 O(n²) 重解析**
-   `LocalFileCheckpointRepository.append` 每步通过 `_find_same_round` 重读并
+1. **local_file 检查点 O(n²) 重解析（B12 后写路径已消除）**
+   `LocalFileCheckpointRepository.append` 原每步通过 `_find_same_round` 重读并
    反序列化该实例全部既有检查点
    （`src/orchestration_platform/persistence/local_file/local_file_checkpoint_repository.py`）。
-   linear_50 每节点 ~430ms 中该二次项占主导；节点越多越贵。
-   postgres 后端无此问题（唯一索引 `ON CONFLICT` O(1) 追加）。
+   B12（2026-11-24）引入 `rounds.idx` 侧车索引（round→checkpoint_id，先索引后
+   文件写序不变量）后，append 同轮判定 O(1) 索引命中，写路径二次项消除——
+   linear_50 p50 −77%、sse_1000 setup 45.1s→11.0s 实证（§3.1）。
+   读路径（`latest_for_instance`/`get`/`list_for_instance`）仍为每调用 O(n) 解析，
+   读侧优化归 P6 承接。postgres 后端无此问题（唯一索引 `ON CONFLICT` O(1) 追加）。
 2. **共享状态链级累缩**
    链式 data_transform 的各级输出全部驻留 `node_outputs`，检查点体积随
    链长 O(i×dataset) 累缩（linear_50 实测平均 260KB/检查点、最大 499KB）。

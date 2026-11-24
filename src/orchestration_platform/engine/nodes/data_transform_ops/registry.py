@@ -29,6 +29,8 @@ MAX_REGEX_INPUT_LENGTH = 8192        # 正则输入字段值长度上限（字�
 MAX_EXPLODE_ROWS = 100000            # explode 展开后总行数上限（超限 fail-fast）
 DEFAULT_FLATTEN_MAX_DEPTH = 3        # flatten 打平深度缺省值（超深度截断 + 告警）
 MAX_JSON_TEXT_LENGTH = 256 * 1024    # JSON 解析文本长度上限（字节，超限该行置空 + 计数）
+MAX_DATASET_ROWS = 200_000           # 数据集行数硬上限（B12-D3：装配后 + 每步输出后检查，超限 fail-fast）
+WARN_DATASET_ROWS = 100_000          # 行数告警软阈值（B12-D3：超限置 metadata.warnings，不中断）
 
 
 # ---------------------------------------------------------------------------

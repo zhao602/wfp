@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 
 from orchestration_platform.domain.errors import (
     DATA_TRANSFORM_CHAIN_TOO_LONG,
+    DATA_TRANSFORM_ROW_LIMIT_EXCEEDED,
     DATA_TRANSFORM_UNKNOWN_OPERATION,
 )
 from orchestration_platform.domain.models.enums import NodeType
@@ -39,6 +40,8 @@ from orchestration_platform.engine.nodes.base import (
 )
 from orchestration_platform.engine.nodes.data_transform_ops import (
     MAX_CHAIN_STEPS,
+    MAX_DATASET_ROWS,
+    WARN_DATASET_ROWS,
     StepContext,
     get_handler,
 )
@@ -80,6 +83,21 @@ class DataTransformNodeExecutor:
             )
         dataset: List[Dict[str, Any]] = input_outcome.value
 
+        # 行数守卫（B12-D3.2 装配后检查）：软阈值告警（metadata.warnings）+
+        # 硬上限 fail-fast（错误消息含行数与阈值）
+        warnings: List[str] = []
+        if len(dataset) > WARN_DATASET_ROWS:
+            warnings.append(
+                f"数据集行数 {len(dataset)} 超过告警阈值 {WARN_DATASET_ROWS}"
+            )
+        if len(dataset) > MAX_DATASET_ROWS:
+            return self._failure(
+                node_id,
+                DATA_TRANSFORM_ROW_LIMIT_EXCEEDED,
+                f"输入数据集行数 {len(dataset)} 超过上限 {MAX_DATASET_ROWS}",
+                start_time,
+            )
+
         # 链归一化（DC-01 唯一权威）与步数上限（INV-15）
         steps = normalize_operations(config)
         if len(steps) > MAX_CHAIN_STEPS:
@@ -91,7 +109,6 @@ class DataTransformNodeExecutor:
             )
 
         # 串行执行：上一步输出 = 下一步输入（design §2.1.3 链式执行流程）
-        warnings: List[str] = []
         for step_index, step in enumerate(steps):
             handler = get_handler(step.operation)
             if handler is None:
@@ -125,6 +142,26 @@ class DataTransformNodeExecutor:
             if outcome.warnings:
                 warnings.extend(outcome.warnings)
             dataset = outcome.value
+
+            # 行数守卫（B12-D3.2 每步输出后检查）：硬限 fail-fast 保持
+            # 「步骤 #{index}（{operation}）」定位格式（OP-12）
+            if len(dataset) > MAX_DATASET_ROWS:
+                return self._failure(
+                    node_id,
+                    DATA_TRANSFORM_ROW_LIMIT_EXCEEDED,
+                    (
+                        f"步骤 #{step_index}（{step.operation.value}）："
+                        f"输出数据集行数 {len(dataset)} 超过上限 {MAX_DATASET_ROWS}"
+                    ),
+                    start_time,
+                )
+            if len(dataset) > WARN_DATASET_ROWS:
+                warnings.append(
+                    (
+                        f"步骤 #{step_index}（{step.operation.value}）："
+                        f"输出数据集行数 {len(dataset)} 超过告警阈值 {WARN_DATASET_ROWS}"
+                    )
+                )
 
         metadata: Dict[str, Any] = {}
         if warnings:

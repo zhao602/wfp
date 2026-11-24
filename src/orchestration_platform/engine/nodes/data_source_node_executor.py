@@ -11,7 +11,7 @@
 # =============================================================================
 
 import logging
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from orchestration_platform.domain.errors import NODE_DATASOURCE_UNAVAILABLE, DomainError
 from orchestration_platform.domain.models.enums import NodeType
@@ -42,6 +42,11 @@ _CREDENTIAL_FIELD_NAMES = frozenset({
     "access_key",
     "api_key",
 })
+
+# 行数守卫与分页常量（B12-D1；INV-15 模式：engine 禁 import configuration，模块级定义）
+DATA_SOURCE_MAX_ROWS = 200_000  # 硬上限：达到即截断终止取数（部分数据仍输出 + 告警）
+DATA_SOURCE_WARN_ROWS = 100_000  # 软阈值：达到即条件触发 metadata 告警
+DATA_SOURCE_PAGE_SIZE = 5_000  # 分页循环次轮起页大小（首轮保持默认 100）
 
 
 class DataSourceNodeExecutor:
@@ -183,28 +188,90 @@ class DataSourceNodeExecutor:
         connection_config = self._build_connection_config(config)
         read_request = self._build_read_request(connection_config)
 
-        # 分支 4/5：查询执行（AC-13）
-        try:
-            read_result = await connector.read(read_request)
-        except DomainError as de:
-            return NodeExecutionResult(
-                success=False,
-                error_code=NODE_DATASOURCE_UNAVAILABLE,
-                error_message=self._sanitize_error_message(de),
-            )
-        except Exception as exc:
-            _logger.warning(
-                "数据源查询未预期异常: %s", type(exc).__name__
-            )
-            return NodeExecutionResult(
-                success=False,
-                error_code=NODE_DATASOURCE_UNAVAILABLE,
-                error_message="数据源查询失败",
+        # 分页循环累积（B12-D1.1）：首轮为默认请求；空页/无更多/硬上限三选一终止
+        rows: List[Dict[str, Any]] = []
+        truncated = False
+        while True:
+            # 分支 4/5：查询执行（AC-13，逐页适用）
+            try:
+                read_result = await connector.read(read_request)
+            except DomainError as de:
+                return NodeExecutionResult(
+                    success=False,
+                    error_code=NODE_DATASOURCE_UNAVAILABLE,
+                    error_message=self._sanitize_error_message(de),
+                )
+            except Exception as exc:
+                _logger.warning(
+                    "数据源查询未预期异常: %s", type(exc).__name__
+                )
+                return NodeExecutionResult(
+                    success=False,
+                    error_code=NODE_DATASOURCE_UNAVAILABLE,
+                    error_message="数据源查询失败",
+                )
+
+            # 空页保护：连接器恰满页多拉一轮得空页 → 终止
+            if not read_result.data:
+                break
+
+            rows.extend(read_result.data)
+
+            # 硬上限：达到即终止（外部源过大：部分数据仍输出 + 告警，不 fail-fast）
+            if len(rows) >= DATA_SOURCE_MAX_ROWS:
+                if len(rows) > DATA_SOURCE_MAX_ROWS:
+                    del rows[DATA_SOURCE_MAX_ROWS:]
+                    truncated = True  # 超限切除
+                elif read_result.has_more:
+                    truncated = True  # 恰达上限且仍有数据 → 截断（未读完）
+                break
+
+            # 连接器声明无更多数据 → 终止
+            # （csv/json 探测语义精确；database/hologres/kafka 满页恒 True 由空页兜底；
+            #   rest/spark/flink 恒 False 且不按 offset 切片 → 单轮，避免重复取数）
+            if not read_result.has_more:
+                break
+
+            # 游标型连接器（kafka）现状 read() 不按请求 cursor 寻址（消费组副作用推进），
+            # 循环推进将导致重复消费 → 保持单轮既有行为，待连接器支持请求寻址后启用
+            if read_result.next_cursor is not None:
+                break
+
+            # offset 模式推进（csv/json/database/hologres 均为请求寻址）
+            read_request = read_request.model_copy(
+                update={
+                    "pagination": read_request.pagination.model_copy(
+                        update={
+                            "offset": read_request.pagination.offset
+                            + read_request.pagination.limit,
+                            "limit": DATA_SOURCE_PAGE_SIZE,
+                        }
+                    )
+                }
             )
 
-        # 分支 6：正常返回含空结果（AC-11/AC-12）
-        return self._convert_result(
-            read_result,
-            context.node_definition.effective_output_name,
-            config.connection_reference,
+        # 分支 6：正常返回含空结果（AC-11/AC-12）；行数告警条件触发（B12-D1.2，
+        #   仅达阈值才附加键——空结果 metadata 精确等值由 AC-15 钉死）
+        metadata: Dict[str, Any] = {
+            "connection_reference": config.connection_reference,
+        }
+        if len(rows) >= DATA_SOURCE_WARN_ROWS:
+            warning = (
+                f"数据集行数达到硬上限 {DATA_SOURCE_MAX_ROWS}，已截断"
+                if truncated
+                else f"数据集行数 {len(rows)} 达到告警阈值 {DATA_SOURCE_WARN_ROWS}"
+            )
+            metadata["row_count"] = len(rows)
+            metadata["row_count_warning"] = warning
+            _logger.warning(
+                "数据源节点 %s: %s",
+                context.node_definition.node_id,
+                warning,
+            )
+
+        return NodeExecutionResult(
+            success=True,
+            output_name=context.node_definition.effective_output_name,
+            output_value=rows,
+            metadata=metadata,
         )

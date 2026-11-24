@@ -174,8 +174,8 @@ class LangGraphAdapter:
         )
         self._instances[instance_id] = instance
 
-        # 构建初始共享状态
-        initial_state = SharedState(
+        # 构建初始共享状态（B12-D7.1 零拷贝播种）
+        initial_state = SharedState.for_seeding(
             instance_id=instance_id,
             node_outputs=dict(request.inputs),
             current_node_id=compiled.entry_node_id,

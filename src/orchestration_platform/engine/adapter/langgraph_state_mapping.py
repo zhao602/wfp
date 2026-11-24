@@ -48,8 +48,11 @@ class LangGraphStateMapping:
         """将 LangGraph 框架状态字典转换为 SharedState。
 
         转换规则：字段一一对应，缺失字段使用 SharedState 默认值。
+        B12-D7.1：免验证构造（model_construct）——本路径为 langgraph
+        每步转换热点，输入来自 to_framework_state/merge_state_update
+        （上游已验证对象），消除 JsonValue 深验证的整份数据集复制。
         """
-        return SharedState(
+        return SharedState.model_construct(
             instance_id=state_dict.get(_KEY_INSTANCE_ID, ""),
             node_outputs=state_dict.get(_KEY_NODE_OUTPUTS, {}),
             loop_counters=state_dict.get(_KEY_LOOP_COUNTERS, {}),

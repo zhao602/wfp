@@ -137,8 +137,8 @@ class ExecutionInstanceService:
 
         run_started_at = _utc_now()
 
-        # 构建初始状态并执行
-        initial_state = SharedState(
+        # 构建初始状态并执行（B12-D7.1 零拷贝播种）
+        initial_state = SharedState.for_seeding(
             instance_id=instance_id,
             node_outputs=dict(request.inputs),
             current_node_id=compiled.entry_node_id,

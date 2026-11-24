@@ -9,7 +9,7 @@
 # =============================================================================
 
 from datetime import datetime, timezone
-from typing import Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -67,7 +67,13 @@ class NodeExecutionResult(BaseModel):
 
     success: bool = Field(description="是否成功")
     output_name: Optional[str] = Field(default=None, description="输出命名")
-    output_value: Optional[JsonValue] = Field(default=None, description="输出值")
+    # B12-D7.1a：Any 直通（免 JsonValue 联合类型构造期容器重建）——执行器
+    # 输出数据集（如 95k 行）经 JsonValue 验证会被整份重建行容器
+    # （实测 +16.9MB 冗余复制）；本模型为进程内瞬态返回类型，从不
+    # 反序列化，构造期验证为纯开销。值写入 shared_state.node_outputs
+    # 后按 D2.2 审计写后不可变；JSON 兼容性由执行器契约保证
+    # （检查点 dump 仍按 SharedState.node_outputs 的 JsonValue 注解序列化）。
+    output_value: Optional[Any] = Field(default=None, description="输出值")
     error_code: Optional[str] = Field(default=None, description="失败错误码")
     error_message: Optional[str] = Field(default=None, description="失败说明")
     duration_ms: int = Field(default=0, ge=0, description="执行耗时（毫秒）")

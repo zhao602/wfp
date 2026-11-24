@@ -230,8 +230,8 @@ async def run_claimed_job(
         )
     )
 
-    # 3. 初始状态 + 续跑点解析（design D3）
-    initial_state = SharedState(
+    # 3. 初始状态 + 续跑点解析（design D3；B12-D7.1 零拷贝播种）
+    initial_state = SharedState.for_seeding(
         instance_id=job.instance_id,
         node_outputs=dict(job.initial_inputs or {}),
     )

@@ -303,9 +303,10 @@ async def start_instance(body: StartInstanceBody, request: Request) -> dict:
     try:
         from orchestration_platform.engine.scheduler import Scheduler
 
-        # 构造初始共享状态（DC-1，INV-1）
+        # 构造初始共享状态（DC-1，INV-1；B12-D7.1 零拷贝播种——免验证构造
+        # 消除 JsonValue 深验证的整份输入复制）
         try:
-            initial_state = SharedState(
+            initial_state = SharedState.for_seeding(
                 instance_id=instance_id,
                 node_outputs=body.inputs or {},
             )

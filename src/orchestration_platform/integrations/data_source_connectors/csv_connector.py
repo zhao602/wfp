@@ -5,6 +5,7 @@
 # =============================================================================
 
 import csv
+from itertools import islice
 
 from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceConnectionConfig,
@@ -38,23 +39,24 @@ class CsvDataSourceConnector:
             raise build_connection_error(Exception("FileNotFound"), f"CSV 文件不存在: {config.file_path}")
 
     async def read(self, request: DataSourceReadRequest) -> DataSourceReadResult:
-        """读取 CSV 文件，支持分页。"""
+        """读取 CSV 文件，支持分页（流式逐行，不整文件驻留，B12-D1.3）。
+
+        islice 跳过 offset 行、探测 limit+1 行判定 has_more；
+        total_count 置 None（流式不再全量计数）。
+        """
         config = request.connection_config
         encoding = config.encoding or "utf-8"
+        offset = request.pagination.offset
+        limit = request.pagination.limit
 
         with open(config.file_path, "r", encoding=encoding, newline="") as f:
             reader = csv.DictReader(f)
-            all_rows = list(reader)
-
-        total = len(all_rows)
-        offset = request.pagination.offset
-        limit = request.pagination.limit
-        page_rows = all_rows[offset : offset + limit]
+            page = list(islice(reader, offset, offset + limit + 1))
 
         return DataSourceReadResult(
-            data=page_rows,
-            total_count=total,
-            has_more=offset + limit < total,
+            data=page[:limit],
+            total_count=None,
+            has_more=len(page) > limit,
         )
 
     async def infer_schema(self, config: DataSourceConnectionConfig) -> DataSchema:

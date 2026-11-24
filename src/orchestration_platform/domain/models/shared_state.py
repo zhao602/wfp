@@ -56,10 +56,59 @@ class SharedState(BaseModel):
         """读取命名输出，不存在返回 None。"""
         return self.node_outputs.get(output_name)
 
+    @classmethod
+    def for_seeding(
+        cls,
+        instance_id: str,
+        node_outputs: Dict[str, JsonValue],
+        current_node_id: Optional[str] = None,
+    ) -> "SharedState":
+        """零拷贝播种构造（B12-D7.1）。
+
+        常规构造 `SharedState(node_outputs=...)` 经 pydantic JsonValue
+        深验证将输入数据集整份复制一遍（100k 行实测 +35.7MB，pydantic
+        main.py:263 峰值主成分之一）；播种输入来自已验证的请求模型或
+        反序列化产物（JSON 兼容性已在上游保证），且 D2.2 审计证明写入
+        node_outputs 的值写后不被原地修改 → 免验证构造（model_construct）
+        值引用直通，消除播种复制。
+        其余缺省字段（loop_counters/branch_selections/并行三表等）由
+        model_construct 按 default_factory 补全，与常规构造等价。
+        """
+        return cls.model_construct(
+            instance_id=instance_id,
+            node_outputs=node_outputs,
+            current_node_id=current_node_id,
+        )
+
     def write_output(self, output_name: str, value: JsonValue) -> None:
         """写入命名输出（覆盖同名的旧值）。"""
         self.node_outputs[output_name] = value
 
     def snapshot(self) -> "SharedState":
-        """返回状态深拷贝快照，用于检查点持久化，避免后续修改影响历史快照。"""
-        return self.model_copy(deep=True)
+        """返回状态快照，用于检查点持久化（B12-D2.1 结构共享）。
+
+        隔离语义：顶层容器新建——快照后的顶层写入（write_output/循环计数/
+        分支选择/并行三表更新）不影响既有快照，与深拷贝行为一致。
+        共享语义：值引用共享——node_outputs 内数据集等大值不再逐检查点
+        深拷贝（深拷贝路径实测为数据本体的 ~2.5× 瞬态开销，峰值主因）。
+        安全前提（D2.2 不可变审计 2026-11-24）：凡写入 node_outputs 的值，
+        写入后不得原地修改——20 个执行算子均为「新建结果集 + 行副本后修改」，
+        调度器单点写入（scheduler.py / langgraph_adapter.py）写后无变异，
+        resume 自反序列化重建（只读）；plugin 执行器为外部代码边界。
+        pending_diff 为瞬态工作区（增量 API 无生产调用方），快照置空。
+        """
+        snap = self.model_copy(deep=False)
+        snap.node_outputs = dict(self.node_outputs)
+        snap.loop_counters = dict(self.loop_counters)
+        snap.branch_selections = dict(self.branch_selections)
+        snap.pending_diff = {}
+        snap.parallel_positions = {
+            k: dict(v) for k, v in self.parallel_positions.items()
+        }
+        snap.parallel_arrivals = {
+            k: list(v) for k, v in self.parallel_arrivals.items()
+        }
+        snap.parallel_cancelled = {
+            k: list(v) for k, v in self.parallel_cancelled.items()
+        }
+        return snap

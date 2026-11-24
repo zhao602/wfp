@@ -32,6 +32,11 @@ def main() -> int:
     parser.add_argument(
         "--peak-file", default="", help="退出时写入 tracemalloc 峰值 JSON 的路径"
     )
+    parser.add_argument(
+        "--top-file",
+        default="",
+        help="退出时写入 tracemalloc top 分配归因 JSON（B12 诊断用，需 --tracemalloc）",
+    )
     args = parser.parse_args()
 
     tracemalloc = None
@@ -63,6 +68,30 @@ def main() -> int:
             json.dump(payload, fh)
 
     atexit.register(_write_peak)
+
+    def _write_top() -> None:
+        if not args.top_file or tracemalloc is None:
+            return
+        snapshot = tracemalloc.take_snapshot()
+        stats = snapshot.statistics("lineno")
+        top = [
+            {
+                "frame": f"{s.traceback[0].filename}:{s.traceback[0].lineno}",
+                "size_bytes": s.size,
+                "count": s.count,
+            }
+            for s in stats[:40]
+        ]
+        current, peak = tracemalloc.get_traced_memory()
+        payload = {
+            "current_bytes": current,
+            "peak_bytes": peak,
+            "top_lineno": top,
+        }
+        with open(args.top_file, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False)
+
+    atexit.register(_write_top)
 
     # 信号兜底：本 handler 先于 uvicorn.run 注册；uvicorn 仅接管
     # SIGINT/SIGTERM，windows 下 SIGBREAK 由本 handler 兜底（SystemExit

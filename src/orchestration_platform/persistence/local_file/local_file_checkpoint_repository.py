@@ -14,7 +14,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import STATE_CHECKPOINT_CORRUPTED, DomainError
@@ -22,6 +22,10 @@ from orchestration_platform.domain.models.checkpoint import (
     Checkpoint,
     CheckpointSummary,
 )
+
+# 同轮索引文件名（B12-D7.2）：不以 .json 结尾——既有测试与读路径
+# glob("*.json") 的文件计数/遍历不受扰
+_ROUND_INDEX_FILENAME = "rounds.idx"
 
 
 class LocalFileCheckpointRepository:
@@ -44,12 +48,68 @@ class LocalFileCheckpointRepository:
         """返回指定检查点的文件路径。"""
         return self._instance_dir(instance_id) / f"{checkpoint_id}.json"
 
+    def _round_index_path(self, instance_id: str) -> Path:
+        """返回指定实例的同轮索引文件路径（B12-D7.2）。"""
+        return self._instance_dir(instance_id) / _ROUND_INDEX_FILENAME
+
+    def _load_round_index(self, instance_id: str) -> Optional[Dict[str, str]]:
+        """载入同轮索引（round -> checkpoint_id）。
+
+        缺失或损坏返回 None（调用方回退全扫描；损坏在下次成功写入时
+        经 _scan_rounds 重建自愈）。
+        """
+        index_path = self._round_index_path(instance_id)
+        if not index_path.exists():
+            return None
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(data, dict):
+            return None
+        return {str(k): str(v) for k, v in data.items()}
+
+    def _scan_rounds(self, instance_id: str) -> Dict[str, str]:
+        """全扫描实例目录重建同轮索引（旧目录一次性种子 / 损坏自愈）。
+
+        仅提取 round_index 与 checkpoint_id 两个字段（json.loads，
+        不做 pydantic 全量验证）；解析失败的文件跳过（与既有读路径
+        容错口径一致）。
+        """
+        instance_dir = self._instance_dir(instance_id)
+        index: Dict[str, str] = {}
+        if not instance_dir.exists():
+            return index
+        for file_path in instance_dir.glob("*.json"):
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            round_index = data.get("round_index") if isinstance(data, dict) else None
+            checkpoint_id = data.get("checkpoint_id") if isinstance(data, dict) else None
+            if isinstance(round_index, int) and isinstance(checkpoint_id, str):
+                index[str(round_index)] = checkpoint_id
+        return index
+
+    def _write_round_index(self, instance_id: str, index: Dict[str, str]) -> None:
+        """写入同轮索引（先于检查点文件写——崩溃一致性写序，B12-D7.2）。"""
+        index_path = self._round_index_path(instance_id)
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(
+            json.dumps(index, ensure_ascii=False), encoding="utf-8"
+        )
+
     async def append(self, checkpoint: Checkpoint) -> str:
         """追加检查点（不可变写入；同轮幂等，arch_review_v2 3.1，CHG-15/DC-09）。
 
         同一 (instance_id, round_index) 已存在检查点时——重试/恢复场景的
         同轮重复写是合法重入：告警日志 + 返回既有检查点标识，
         不抛异常、不写入（与 postgres 实现语义一致，双实现语义一致）。
+        B12-D7.2：同轮检查经 rounds.idx 侧车索引加速——写序不变量
+        「先索引后检查点文件」保证「检查点文件存在 ⟹ 索引含其 round」，
+        索引存在且 round 缺席即可免全量重解析放行；无索引/损坏/陈旧项
+        三类情形回退全扫描（旧行为）。
+        B12-D7.3：落盘为紧凑 JSON（缩进串 18.2MB → 紧凑 8.1MB，实测）。
         """
         file_path = self._checkpoint_file(checkpoint.instance_id, checkpoint.checkpoint_id)
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,23 +121,51 @@ class LocalFileCheckpointRepository:
             )
 
         # 同轮幂等校验（新增分支：既有路径零影响——不同轮次的写入不经过此分支）
-        existing_same_round = await self._find_same_round(
-            checkpoint.instance_id, checkpoint.round_index
-        )
-        if existing_same_round is not None:
+        existing_same_round_id = await self._find_same_round_id(checkpoint)
+        if existing_same_round_id is not None:
             logging.warning(
                 "检查点同轮重复写被幂等吸收: instance_id=%s round_index=%s"
                 " 既有=%s 新写=%s（重试/恢复合法重入，不抛异常）",
                 checkpoint.instance_id, checkpoint.round_index,
-                existing_same_round.checkpoint_id, checkpoint.checkpoint_id,
+                existing_same_round_id, checkpoint.checkpoint_id,
             )
-            return existing_same_round.checkpoint_id
+            return existing_same_round_id
+
+        # 索引先行（写序不变量），再写检查点文件
+        index = self._load_round_index(checkpoint.instance_id)
+        if index is None:
+            index = self._scan_rounds(checkpoint.instance_id)
+        index[str(checkpoint.round_index)] = checkpoint.checkpoint_id
+        self._write_round_index(checkpoint.instance_id, index)
 
         file_path.write_text(
-            checkpoint.model_dump_json(indent=2),
+            checkpoint.model_dump_json(),
             encoding="utf-8",
         )
         return checkpoint.checkpoint_id
+
+    async def _find_same_round_id(self, checkpoint: Checkpoint) -> Optional[str]:
+        """同轮幂等检查（索引优先，返回既有检查点标识；无则 None）。
+
+        - 索引命中且指向文件存在 → 直接返回（免重解析）
+        - 索引命中但文件缺失（崩溃窗口陈旧项）→ 回退全扫描
+        - 索引存在且 round 缺席 → 写序不变量保证无同轮文件，免扫描返回 None
+        - 索引缺失/损坏 → 回退全扫描（旧行为）
+        """
+        index = self._load_round_index(checkpoint.instance_id)
+        if index is not None:
+            existing_id = index.get(str(checkpoint.round_index))
+            if existing_id is not None:
+                if self._checkpoint_file(checkpoint.instance_id, existing_id).exists():
+                    return existing_id
+            else:
+                return None
+        legacy = await self._find_same_round(
+            checkpoint.instance_id, checkpoint.round_index
+        )
+        if legacy is not None:
+            return legacy.checkpoint_id
+        return None
 
     async def _find_same_round(
         self, instance_id: str, round_index: int

@@ -130,6 +130,39 @@
   ruff 16 自增文件零违规；**版本维持 0.3.0**（用户裁决，统一升位
   递延）。
 
+### B12 数据分块与检查点写路径优化（P3 核心）
+
+- **取数游标化**：data_source 执行器 has_more 单一驱动分页循环；
+  CSV 连接器生成器流式行读取（免整文件载入）；截断标志语义修正
+  （恰达上限 + has_more=True → truncated=True，数据未读完即截断）。
+- **快照结构共享**：`node_outputs` 写入值不可变约定固化（D2.2 审计）；
+  `snapshot()` 零深拷贝结构共享，多消费者共享行引用。
+- **变换行数守卫**：`data_transform_ops` 模块常量上限（INV-15 模式）+
+  超限告警/截断/拒绝三态处置，21 算子全对账；错误码复用零新增。
+- **检查点写路径 D7-lite（gate 触发改道，spill-to-disk 裁撤）**：
+  - 播种零拷贝：`SharedState.for_seeding`（model_construct 免验证），
+    5 个大载荷构造点转换（router/service/adapter/worker/state_mapping）；
+  - same-round 侧车索引：`rounds.idx`（round→checkpoint_id；先索引后
+    文件写序不变量 + 无索引/损坏/陈旧三重回退自愈）——append O(n²)
+    重解析消除（linear_50 p50 −77%、sse_1000 setup 45.1s→11.0s）；
+  - 紧凑 dump：local_file append 去缩进（串 18.2MB→8.1MB）；
+  - 执行结果零验证：`NodeExecutionResult.output_value` JsonValue→Any
+    （联合类型容器重建 +16.9MB 消除；进程内瞬态从不反序列化）。
+- **内存 gate 达成**：pipeline_100k server 峰值 **140.7MB ≤ 150MB**
+  （T0 基线 248.1 → 140.7，−43.3%；248.1→213.0→156.8→140.7 阶梯
+  见批内 design D7.5）——spill-to-disk 正式裁撤（−2 人日）。
+- **OOM 专项测试**：新增 5 文件 49 例（游标分页 9 / CSV 流式 8 /
+  行数守卫 7 / 快照共享 9 / 检查点索引 16），既有测试零修改。
+- **门禁基线（本批实测）**：全量 pytest **3906 collected / 215 文件
+  exit 0**（精确闭合：T0 3756 + M6 会话中提交 +61 + 本批 +49 + 并行批
+  未提交 +40；B12 隔离预演树 1ef7576+本批 20 文件全量 exit 0——staging
+  纯度验证）；vitest 1012+13（零 web 触碰）；typecheck 0 error；e2e 6/6
+  （44.4s，worktree 隔离 8331/5175）；四基准 A/B 同窗 worktree 对照
+  （A=1ef7576 干净 / B=+本批）：内存 **B 140.7×2 零方差 vs A 248.7
+  冷/226.4 暖**；timing p95 pipeline −41% / linear −77% / parallel
+  −66% / sse −17%（105.6 单轮尖峰复测 71.5 界定）；ruff 本批 20 文件
+  零违规；AST 门禁 PASS；**版本维持 0.3.0**。
+
 ---
 
 ## [0.3.0] - 2026-11-23

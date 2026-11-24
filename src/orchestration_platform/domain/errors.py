@@ -236,7 +236,7 @@ DATA_TRANSFORM_CHAIN_TOO_LONG = "DATA_TRANSFORM_CHAIN_TOO_LONG"                #
 DATA_TRANSFORM_SCRIPT_NOT_EXECUTABLE = "DATA_TRANSFORM_SCRIPT_NOT_EXECUTABLE"  # 自定义脚本不可执行（仅登记与静态校验；不落共享状态、不改数据，OP-10/CHG-B17）
 DATA_TRANSFORM_REGEX_UNSAFE_PATTERN = "DATA_TRANSFORM_REGEX_UNSAFE_PATTERN"    # 正则模式未通过安全校验（回溯灾难/超长；附模式定位，CHG-B12）
 DATA_TRANSFORM_REGEX_INPUT_TOO_LONG = "DATA_TRANSFORM_REGEX_INPUT_TOO_LONG"    # 正则输入文本超长上限（INV-15）
-DATA_TRANSFORM_ROW_LIMIT_EXCEEDED = "DATA_TRANSFORM_ROW_LIMIT_EXCEEDED"        # 展开生成行数超上限（附上限值与超出规模，CHG-B13/INV-15）
+DATA_TRANSFORM_ROW_LIMIT_EXCEEDED = "DATA_TRANSFORM_ROW_LIMIT_EXCEEDED"        # 数据集行数超上限（explode 展开超限 CHG-B13；执行器级装配后/每步输出后超限复用 B12-D3.2；附上限值与超出规模，INV-15）
 
 # --- 大模型节点与代码节点（llm_and_code_nodes，spec §6.5 / design §2.3.2(4)）---
 LLM_NODE_DISABLED = "LLM_NODE_DISABLED"                                      # 大模型节点能力开关关闭（执行期，映射 NodeExecutionResult.error_code）
