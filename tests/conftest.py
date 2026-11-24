@@ -4,6 +4,7 @@
 # 职责：提供合法/非法定义样本路径、内存桩 MCP/LLM 客户端、临时存储后端等共享夹具。
 # =============================================================================
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,33 @@ import asyncio
 # Windows 下 ProactorEventLoop 无法创建 socket pair，改用 SelectorEventLoop
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# ---------------------------------------------------------------------------
+# 测试环境基线（2026-11-24 CI run 45335295708 定位）
+#
+# 测试套件此前隐式依赖本机 .env（gitignore 不入库）：CI / 全新克隆无 .env 时
+# pydantic-settings 走字段默认值，与已验证的本地环境不一致，导致 42 项失败：
+#   - RBAC/租户隔离默认 True → 无令牌请求 401（治理链未降级）
+#   - 市场/向量库管理开关默认 False → 路由不注册（405/404 断言失败）
+#   - LLM 主模型配置默认空串 → 客户端工厂返回 None → Agent/LLM 执行器跳过注册
+#
+# 此处显式声明测试套件所需的环境基线（与本地开发 .env 等价、无真实密钥）：
+#   - setdefault 语义：CI/开发者已显式导出的环境变量优先，不越权覆盖；
+#   - LLM 为占位配置：仅满足客户端构造（不发起网络调用），杜绝密钥入库。
+# ---------------------------------------------------------------------------
+_TEST_ENV_BASELINE = {
+    "RBAC_ENABLED": "false",
+    "TENANT_ISOLATION_ENABLED": "false",
+    "AGENT_MARKET_ENABLED": "true",
+    "TOOL_MARKET_ENABLED": "true",
+    "AGENT_MARKET_DEV_ENABLED": "true",
+    "VECTOR_KB_MANAGEMENT_ENABLED": "true",
+    "LLM_PRIMARY_BASE_URL": "http://127.0.0.1:9/v1",
+    "LLM_PRIMARY_API_KEY": "test-placeholder-key",
+    "LLM_PRIMARY_MODEL": "test-placeholder-model",
+}
+for _key, _value in _TEST_ENV_BASELINE.items():
+    os.environ.setdefault(_key, _value)
 
 import pytest
 
