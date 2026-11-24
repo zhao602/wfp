@@ -13,7 +13,6 @@
 #   7. 资源池指标：资源池占用率、抢占次数。
 # =============================================================================
 
-import time
 from typing import Any, Dict
 
 from orchestration_platform.observability.metrics_collector import MetricsCollector

@@ -24,7 +24,6 @@ from wfp_sdk import (
     WF_VALIDATION_FAILED,
     WorkflowClient,
     WfpAuthError,
-    WfpError,
     WfpNotFoundError,
     WfpStateConflictError,
     WfpTimeoutError,

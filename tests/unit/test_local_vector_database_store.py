@@ -13,7 +13,6 @@
 # （同步 API 驱动，禁 asyncio.run；tmp_path 注入存储根，断言落点前缀不越权）
 # =============================================================================
 
-import math
 import random
 import sqlite3
 

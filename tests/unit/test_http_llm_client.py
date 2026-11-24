@@ -18,7 +18,6 @@
 # 沙箱限制：pytest 无法安装，本文件作为交付物编写，待 CI 执行。
 # =============================================================================
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

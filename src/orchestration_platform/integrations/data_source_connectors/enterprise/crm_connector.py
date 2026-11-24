@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional
 
 from orchestration_platform.domain.errors import (
     CONNECTOR_AUTH_FAILED,
-    CONNECTOR_SCHEMA_MISMATCH,
     CONNECTOR_TIMEOUT,
     DomainError,
 )
@@ -18,7 +17,6 @@ from orchestration_platform.integrations.data_source_connectors.enterprise.data_
     DataScopeGuard,
 )
 from orchestration_platform.integrations.data_source_connectors.enterprise.models import (
-    DataScope,
     EnterpriseConnectorConfig,
 )
 

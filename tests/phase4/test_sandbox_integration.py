@@ -11,7 +11,6 @@
 # =============================================================================
 
 import asyncio
-import os
 import tempfile
 import time
 import unittest
@@ -23,7 +22,6 @@ from orchestration_platform.domain.models.enums import (
 )
 from orchestration_platform.integrations.sandbox.models import (
     SandboxPolicy,
-    SandboxSession,
 )
 from orchestration_platform.integrations.sandbox.logical_isolation_runtime import (
     LogicalIsolationRuntime,
@@ -342,7 +340,7 @@ class TestOverheadVerification(unittest.TestCase):
             arguments={"msg": "benchmark"},
         )
         start_sandbox = time.monotonic()
-        result = _run_async(runtime.execute(session, invocation))
+        _run_async(runtime.execute(session, invocation))
         sandbox_duration = time.monotonic() - start_sandbox
 
         _run_async(runtime.recycle(session))

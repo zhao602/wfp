@@ -11,7 +11,7 @@
 
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 from orchestration_platform.domain.models.enums import ViolationType
 from orchestration_platform.integrations.sandbox.models import (

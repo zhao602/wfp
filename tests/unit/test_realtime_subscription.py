@@ -8,7 +8,6 @@ import pytest
 from orchestration_platform.domain.models.enums import DataSourceType
 from orchestration_platform.engine.realtime_subscription.models import (
     EventFilterRule,
-    RealtimeSubscription,
     SubscriptionCreateRequest,
     SubscriptionStatus,
 )

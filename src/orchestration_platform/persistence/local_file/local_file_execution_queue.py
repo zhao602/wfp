@@ -28,9 +28,6 @@ from orchestration_platform.domain.models.execution_job import (
     JOB_STATUS_RUNNING,
     ExecutionJob,
 )
-from orchestration_platform.persistence.abstractions.execution_queue import (
-    IExecutionQueue,
-)
 
 
 class LocalFileExecutionQueue:

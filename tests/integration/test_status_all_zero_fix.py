@@ -14,11 +14,10 @@
 # settings，使跳过分支确定性触发（FR-09 / INV-13，mock 限定 with 块内）。
 # =============================================================================
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 from unittest.mock import MagicMock, patch
 
 import pytest

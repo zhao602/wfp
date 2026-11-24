@@ -12,9 +12,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from orchestration_platform.governance.evaluation.abstractions.trajectory_scorer import (
-    ITrajectoryScorer,
-)
 from orchestration_platform.governance.evaluation.clear_scorer import ClearScorer
 from orchestration_platform.governance.evaluation.models import (
     AgentTrajectory,

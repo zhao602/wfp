@@ -7,7 +7,7 @@
 #   2. 工具覆盖工作流管理、实例执行、状态查询三类能力。
 # =============================================================================
 
-from typing import Any, Dict, List
+from typing import List
 
 from orchestration_platform.domain.models.enums import ToolPermission
 from orchestration_platform.mcp_tool_market.models import McpToolDescriptor

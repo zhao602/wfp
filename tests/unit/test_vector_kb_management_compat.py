@@ -16,7 +16,6 @@
 
 from typing import Optional
 
-import pytest
 from pydantic import TypeAdapter
 
 from orchestration_platform.domain.models.enums import NodeType

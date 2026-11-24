@@ -14,7 +14,6 @@
 import asyncio
 import logging
 import os
-import signal
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -140,7 +139,7 @@ class SubprocessSandboxExecutor:
         script = (
             "import sys, json\n"
             "payload = json.loads(sys.stdin.read())\n"
-            f"print(json.dumps({{'result': payload}}))\n"
+            "print(json.dumps({'result': payload}))\n"
         )
 
         # 写入临时脚本文件

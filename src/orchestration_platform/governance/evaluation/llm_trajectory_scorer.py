@@ -14,9 +14,6 @@ from datetime import datetime, timezone
 from typing import Any, Optional, Protocol, runtime_checkable
 
 from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.governance.evaluation.abstractions.trajectory_scorer import (
-    ITrajectoryScorer,
-)
 from orchestration_platform.governance.evaluation.models import (
     AgentTrajectory,
     ClearScore,

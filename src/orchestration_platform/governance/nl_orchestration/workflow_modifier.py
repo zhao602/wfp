@@ -11,10 +11,8 @@
 
 import copy
 import logging
-from typing import List
 
 from orchestration_platform.domain.models.edge_definition import EdgeDefinition
-from orchestration_platform.domain.models.enums import NodeType
 from orchestration_platform.domain.models.node_definition import NodeDefinition
 from orchestration_platform.domain.models.workflow_definition import WorkflowDefinition
 from orchestration_platform.governance.nl_orchestration.models import (

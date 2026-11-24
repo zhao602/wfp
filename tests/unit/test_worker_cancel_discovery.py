@@ -18,7 +18,6 @@ from pathlib import Path
 
 import pytest
 
-from orchestration_platform.application.execution_runner import InstanceRegistry
 from orchestration_platform.domain.models.enums import EventType, NodeType
 from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.domain.models.execution_job import ExecutionJob

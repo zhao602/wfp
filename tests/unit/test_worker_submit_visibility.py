@@ -13,7 +13,6 @@
 # 执行命令：PYTHONPATH=src python -m pytest tests/unit/test_worker_submit_visibility.py -q
 # =============================================================================
 
-import uuid
 from types import SimpleNamespace
 
 import pytest

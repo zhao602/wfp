@@ -20,7 +20,6 @@ from orchestration_platform.integrations.sandbox.abstractions.sandbox_runtime im
 )
 from orchestration_platform.integrations.sandbox.models import (
     SandboxInvocation,
-    SandboxPolicy,
 )
 from orchestration_platform.integrations.sandbox.policy_manager import (
     SandboxPolicyManager,

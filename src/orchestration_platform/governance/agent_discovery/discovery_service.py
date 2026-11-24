@@ -28,11 +28,9 @@ from orchestration_platform.governance.agent_discovery.keyword_index import (
 )
 from orchestration_platform.governance.agent_discovery.models import (
     AgentSemanticProfile,
-    CallerContext,
     DiscoveryQuery,
     DiscoveryResult,
     DiscoveryResultItem,
-    IndexHit,
 )
 from orchestration_platform.governance.agent_discovery.semantic_index_repository_local import (
     LocalSemanticIndexRepository,

@@ -30,7 +30,6 @@ from orchestration_platform.plugin_sdk.manifest_validator import (
 from orchestration_platform.plugin_sdk.models import (
     LifecycleLog,
     PluginManifest,
-    ValidationResult,
 )
 from orchestration_platform.plugin_sdk.package_validator import (
     NodePackageValidator,

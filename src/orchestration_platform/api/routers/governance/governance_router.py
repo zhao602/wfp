@@ -9,9 +9,9 @@
 # =============================================================================
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from orchestration_platform.governance.application.governance_services import (
@@ -83,7 +83,6 @@ async def create_tenant(req: CreateTenantRequest):
 @router.get("/tenants")
 async def list_tenants():
     """列出全部租户（平台管理员）。"""
-    services = get_governance_services()
     return {"tenants": [], "message": "租户列表查询（需注入仓储实现）"}
 
 

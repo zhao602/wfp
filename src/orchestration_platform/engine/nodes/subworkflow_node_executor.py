@@ -18,9 +18,8 @@ from orchestration_platform.domain.errors import (
     WF_SUBWORKFLOW_DEPTH_EXCEEDED,
     WF_SUBWORKFLOW_INPUT_MAPPING_FAILED,
     WF_SUBWORKFLOW_NOT_FOUND,
-    DomainError,
 )
-from orchestration_platform.domain.models.enums import EventType, NodeType, SubworkflowContextStrategy
+from orchestration_platform.domain.models.enums import EventType, NodeType
 from orchestration_platform.domain.models.node_configurations import SubWorkflowNodeConfiguration
 from orchestration_platform.engine.input_assembly import (
     AssemblyFailure,

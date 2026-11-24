@@ -18,9 +18,6 @@ from orchestration_platform.domain.models.enums import (
     PolicyEffect,
 )
 from orchestration_platform.governance.interceptors.base import GovernanceRequest
-from orchestration_platform.governance.rbac.abac.abstractions.abac_policy_engine import (
-    IAbacPolicyEngine,
-)
 from orchestration_platform.governance.rbac.abac.abstractions.attribute_evaluator import (
     IAttributeEvaluator,
 )

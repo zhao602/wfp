@@ -17,7 +17,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from orchestration_platform.integrations.llm.primary_fallback_llm_client import (
     PrimaryFallbackLlmClient,

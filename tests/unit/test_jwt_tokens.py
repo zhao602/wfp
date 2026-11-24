@@ -16,7 +16,6 @@ import hashlib
 import hmac
 import inspect
 import json
-import time
 
 import pytest
 

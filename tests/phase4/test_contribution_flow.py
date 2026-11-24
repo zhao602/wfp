@@ -16,10 +16,8 @@ import hmac
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock
 
 from orchestration_platform.domain.errors import (
-    CONTRIBUTION_DUPLICATE,
     CONTRIBUTION_INVALID_TRANSITION,
     DomainError,
 )
@@ -28,8 +26,6 @@ from orchestration_platform.domain.models.enums import (
     ContributorType,
 )
 from orchestration_platform.mcp_tool_market.contribution.models import (
-    ContributionSubmitRequest,
-    ContributionTransitionRequest,
     NodeContribution,
     SignatureInfo,
     StateTransitionRecord,

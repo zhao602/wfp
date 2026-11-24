@@ -11,7 +11,7 @@
 # 禁止 import langgraph；全部路由决策在平台自有确定性控制路径上实现。
 # =============================================================================
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from orchestration_platform.domain.errors import SUP_ROUTE_DECISION_FAILED, DomainError
 from orchestration_platform.engine.supervisor_orchestration.models import RouteDecision

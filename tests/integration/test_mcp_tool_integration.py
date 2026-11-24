@@ -7,7 +7,6 @@
 #           PrimaryFallbackLlmClient 接受 ILlmClient 对象 + async infer
 # =============================================================================
 
-import asyncio
 
 import pytest
 

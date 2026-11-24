@@ -11,9 +11,6 @@
 import logging
 from typing import Dict, List, Optional
 
-from orchestration_platform.governance.rbac.abac.abstractions.policy_repository import (
-    IAbacPolicyRepository,
-)
 from orchestration_platform.governance.rbac.abac.models import AbacPolicy, AbacCondition
 
 _logger = logging.getLogger(__name__)

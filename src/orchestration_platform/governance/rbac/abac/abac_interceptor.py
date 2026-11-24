@@ -16,7 +16,6 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IGovernanceInterceptor,
 )
 from orchestration_platform.governance.rbac.abac.abstractions.abac_policy_engine import (
     ICombinedDecisionEngine,

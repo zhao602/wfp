@@ -17,7 +17,6 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IMeteringInterceptor,
 )
 from orchestration_platform.governance.metering.token_meter import TokenMeter
 from orchestration_platform.governance.metering.usage_buffer_queue import (

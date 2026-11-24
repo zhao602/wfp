@@ -3,7 +3,6 @@
 # =============================================================================
 
 import logging
-from typing import Any
 
 from orchestration_platform.governance.event_bus.abstractions.event_bus import IEventBus
 from orchestration_platform.governance.event_bus.event_sequence_reorder import (

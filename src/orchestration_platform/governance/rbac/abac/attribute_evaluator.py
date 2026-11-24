@@ -10,13 +10,9 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from orchestration_platform.domain.models.enums import AttributeSource
 from orchestration_platform.governance.interceptors.base import GovernanceRequest
-from orchestration_platform.governance.rbac.abac.abstractions.attribute_evaluator import (
-    IAttributeEvaluator,
-)
 
 _logger = logging.getLogger(__name__)
 

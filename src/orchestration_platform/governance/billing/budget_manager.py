@@ -11,7 +11,6 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.enums import (
     BudgetPeriod,
     BudgetScope,

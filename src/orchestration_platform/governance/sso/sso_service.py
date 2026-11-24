@@ -14,13 +14,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.domain.errors import IDP_UNREACHABLE, SSO_DEGRADED, DomainError
+from orchestration_platform.domain.errors import DomainError
 from orchestration_platform.domain.models.enums import SsoProtocolType
 from orchestration_platform.governance.sso.idp_config_manager import IdpConfigManager
 from orchestration_platform.governance.sso.jit_provisioner import JitProvisioner
 from orchestration_platform.governance.sso.models import (
     AuthRedirect,
-    IdpConfiguration,
     SsoLoginResult,
 )
 from orchestration_platform.governance.sso.oidc_adapter import OidcAdapter

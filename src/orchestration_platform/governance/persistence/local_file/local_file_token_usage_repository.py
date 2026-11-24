@@ -8,7 +8,6 @@
 #   2. 用于无 PostgreSQL 环境与测试。
 # =============================================================================
 
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional

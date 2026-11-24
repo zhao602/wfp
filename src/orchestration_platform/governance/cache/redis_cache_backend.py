@@ -11,11 +11,6 @@
 import logging
 from typing import Optional
 
-from orchestration_platform.governance.cache.abstractions.cache_backend import (
-    ICacheBackend,
-    IDistributedLock,
-    IRateLimiter,
-)
 from orchestration_platform.governance.cache.models import RateLimitResult
 
 _logger = logging.getLogger(__name__)

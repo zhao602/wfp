@@ -92,7 +92,7 @@ class SignatureVerifier:
         """RSA-SHA256 校验（密码学库延迟导入）。"""
         try:
             from cryptography.hazmat.primitives import hashes, serialization
-            from cryptography.hazmat.primitives.asymmetric import padding, rsa
+            from cryptography.hazmat.primitives.asymmetric import padding
             from cryptography.exceptions import InvalidSignature
         except ImportError:
             _logger.error("RSA 签名校验需要 cryptography 库，当前未安装")

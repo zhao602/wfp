@@ -25,7 +25,6 @@ from orchestration_platform.governance.resource.resource_pool import (
 )
 from orchestration_platform.governance.scheduler.priority_queue import (
     PriorityQueue,
-    QueueEntry,
 )
 from orchestration_platform.governance.scheduler.schedulers import (
     StrategyRegistry,

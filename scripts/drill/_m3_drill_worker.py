@@ -25,10 +25,6 @@ def _phase(label: str) -> None:
     """相位打印（stdout 落 drill 日志，供接管时延分析）。"""
     print(f"[phase] {time.time():.3f} pid={os.getpid()} {label}", flush=True)
 
-from orchestration_platform.application.execution_runner import (  # noqa: E402
-    InstanceRegistry,
-    NodeEventCallbackImpl,
-)
 from orchestration_platform.domain.models.enums import NodeType  # noqa: E402
 from orchestration_platform.engine.node_executor_registry import (  # noqa: E402
     NodeExecutorRegistry,

@@ -7,7 +7,7 @@
 #   2. 错误码 INSTANCE_NOT_FOUND / CONTEXT_CHECKPOINT_CORRUPTED。
 # =============================================================================
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 router = APIRouter(tags=["上下文查询"])
 

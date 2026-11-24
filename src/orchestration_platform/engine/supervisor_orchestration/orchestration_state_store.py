@@ -13,6 +13,7 @@
 
 import json
 import os
+from importlib.util import find_spec
 from typing import Dict, Optional
 
 from orchestration_platform.domain.errors import SUP_STATE_RESTORE_FAILED, DomainError
@@ -152,9 +153,7 @@ class PostgresStateStore:
             return
         if self._pool is not None:
             return
-        try:
-            import asyncpg
-        except ImportError:
+        if find_spec("asyncpg") is None:
             self._degraded = InMemoryStateStore()
             return
         # asyncpg 连接池创建在协程中执行，此处仅标记待初始化

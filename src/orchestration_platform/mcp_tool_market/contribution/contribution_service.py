@@ -19,8 +19,6 @@ from orchestration_platform.domain.errors import (
     CONTRIBUTION_DUPLICATE,
     CONTRIBUTION_NOT_FOUND,
     DomainError,
-    SCAN_NOT_PASSED,
-    SIGNATURE_INVALID,
 )
 from orchestration_platform.domain.models.enums import ContributionState
 from orchestration_platform.mcp_tool_market.contribution.models import (

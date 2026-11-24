@@ -13,7 +13,6 @@
 import json
 from typing import Any, Dict, Optional
 
-import pytest
 
 from orchestration_platform.api.routers.governance import governance_router as router_mod
 from orchestration_platform.api.routers.governance.governance_router import (

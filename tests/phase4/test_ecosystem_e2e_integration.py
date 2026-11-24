@@ -18,7 +18,6 @@ from orchestration_platform.domain.models.enums import (
     ContributionState,
     DataSourceType,
     NodeType,
-    SsoProtocolType,
 )
 
 

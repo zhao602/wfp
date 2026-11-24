@@ -18,7 +18,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.execution_job import ExecutionJob

@@ -27,16 +27,14 @@
 # =============================================================================
 
 import asyncio
-import time
 from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from orchestration_platform.domain.models.enums import NodeType
 from orchestration_platform.domain.models.node_configurations import (
     OutputDisplayNodeConfiguration,
-    NodeConfiguration,
     normalize_output_mode,
     normalize_output_references,
 )
@@ -44,7 +42,6 @@ from orchestration_platform.domain.models.node_definition import NodeDefinition
 from orchestration_platform.domain.models.shared_state import SharedState
 from orchestration_platform.engine.nodes.base import (
     NodeExecutionContext,
-    NodeExecutionResult,
 )
 from orchestration_platform.engine.nodes.output_display_node_executor import (
     OutputDisplayNodeExecutor,
@@ -308,7 +305,6 @@ class TestEventPayload:
     """事件载荷分派验证"""
 
     def test_tc08_output_display_payload_contains_display_fields(self):
-        from orchestration_platform.engine.scheduler import NodeEventCallback
 
         captured_payload = None
 

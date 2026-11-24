@@ -29,8 +29,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.governance.metering.reconcile import (
+from orchestration_platform.configuration.settings import get_settings  # noqa: E402
+from orchestration_platform.governance.metering.reconcile import (  # noqa: E402
     ReconcileEnvironmentError,
     collect_runlog_begins_by_tenant,
     collect_usage_by_tenant,

@@ -9,7 +9,7 @@ import pytest
 from orchestration_platform.engine.nodes.control_flow_node_executor import (
     ControlFlowNodeExecutor,
 )
-from orchestration_platform.engine.nodes.base import NodeExecutionContext, NodeExecutionResult
+from orchestration_platform.engine.nodes.base import NodeExecutionContext
 from orchestration_platform.domain.models.shared_state import SharedState
 from orchestration_platform.domain.models.node_definition import NodeDefinition
 from orchestration_platform.domain.models.enums import NodeType

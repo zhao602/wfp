@@ -26,7 +26,6 @@ from orchestration_platform.domain.models.enums import (
     ResourceType,
 )
 from orchestration_platform.governance.audit.models import AuditLogEntry
-from orchestration_platform.governance.audit.tombstone.models import TombstoneResult
 from orchestration_platform.governance.audit.tombstone.tombstone_service import (
     TombstoneService,
 )
@@ -39,7 +38,6 @@ from orchestration_platform.governance.event_bus.workflow_event_publisher import
 from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
-    GovernanceResult,
     InterceptorChain,
 )
 from orchestration_platform.governance.persistence.local_file.local_file_audit_log_repository import (
@@ -50,9 +48,6 @@ from orchestration_platform.governance.rbac.abac.abac_policy_engine import (
 )
 from orchestration_platform.governance.rbac.abac.attribute_evaluator import (
     AttributeEvaluator,
-)
-from orchestration_platform.governance.rbac.abac.combined_decision_engine import (
-    CombinedDecisionEngine,
 )
 from orchestration_platform.governance.rbac.abac.models import (
     AbacCondition,
@@ -405,7 +400,6 @@ class TestCombinedDecisionWithCache(unittest.TestCase):
         _run_async(self.abac_repo.save(policy))
 
         # 将策略序列化缓存
-        import json
         policy_json = policy.model_dump_json()
         _run_async(
             self.cache_backend.set(

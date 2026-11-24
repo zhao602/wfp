@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.governance.billing.models import CostRecord, PricingRule
+from orchestration_platform.governance.billing.models import CostRecord
 from orchestration_platform.governance.billing.pricing_rule_manager import (
     PricingRuleManager,
 )

@@ -12,7 +12,6 @@
 from typing import Optional
 
 from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.domain.models.enums import CircuitBreakStrategy
 from orchestration_platform.governance.billing.budget_manager import BudgetManager
 from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,

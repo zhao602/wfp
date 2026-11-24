@@ -14,8 +14,7 @@
 
 import asyncio
 import unittest
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from orchestration_platform.domain.models.enums import (
     IntentType,
@@ -27,8 +26,6 @@ from orchestration_platform.governance.nl_orchestration.injection_guard import (
     InjectionGuard,
 )
 from orchestration_platform.governance.nl_orchestration.models import (
-    InjectionCheckResult,
-    NLOrchestrationResult,
     ParsedIntent,
     ParsedNodeSpec,
     ParsedEdgeSpec,
@@ -41,7 +38,6 @@ from orchestration_platform.governance.nl_orchestration.workflow_modifier import
 )
 from orchestration_platform.integrations.abstractions.external_clients import (
     ILlmClient,
-    InferenceRequest,
     InferenceResult,
 )
 from orchestration_platform.governance.nl_orchestration.nl_intent_parser import (

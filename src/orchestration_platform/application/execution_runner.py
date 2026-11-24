@@ -43,7 +43,7 @@ from orchestration_platform.domain.models.domain_event import (
     DomainEvent,
     summarize_text,
 )
-from orchestration_platform.domain.models.enums import EventType, NodeType
+from orchestration_platform.domain.models.enums import EventType
 from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.domain.models.execution_job import ExecutionJob
 from orchestration_platform.engine.abstractions.domain_event_publisher import (

@@ -99,7 +99,7 @@ def _emit_summary(
         emit_text("执行摘要")
         emit_text(f"  实例：{instance_id}")
         emit_text(f"  定义：{compiled.definition_id}（版本 {compiled.definition_version}）")
-        emit_text(f"  状态：成功")
+        emit_text("  状态：成功")
         emit_text(f"  顺序：{' -> '.join(compiled.node_order)}")
         emit_text(f"  耗时：{elapsed_seconds:.3f} 秒")
         emit_text(f"  输出键：{'、'.join(sorted(final_state.node_outputs.keys())) or '（无）'}")

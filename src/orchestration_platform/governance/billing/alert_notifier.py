@@ -9,9 +9,8 @@
 #   3. 告警通知含租户标识、预算标识、累计成本、阈值、触发时间。
 # =============================================================================
 
-import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from orchestration_platform.configuration.settings import get_settings
 

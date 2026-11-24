@@ -19,9 +19,8 @@ from typing import List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import DomainError
-from orchestration_platform.domain.models.enums import ContributionState, ContributorType
+from orchestration_platform.domain.models.enums import ContributionState
 from orchestration_platform.mcp_tool_market.contribution.contribution_repository_local import (
     LocalContributionRepository,
 )
@@ -29,9 +28,7 @@ from orchestration_platform.mcp_tool_market.contribution.contribution_service im
     ContributionService,
 )
 from orchestration_platform.mcp_tool_market.contribution.models import (
-    ContributionSubmitResult,
     ContributionTransitionRequest,
-    ContributionTransitionResult,
     NodeContribution,
     ScanReport,
     SignatureInfo,

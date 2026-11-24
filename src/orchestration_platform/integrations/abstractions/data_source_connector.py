@@ -8,7 +8,7 @@
 #   3. 凭据保护：连接配置中的密钥/令牌不出现在日志中。
 # =============================================================================
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceConnectionConfig,

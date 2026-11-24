@@ -7,14 +7,12 @@
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock
 
 from orchestration_platform.domain.errors import SSO_REPLAY_DETECTED, DomainError
 from orchestration_platform.domain.models.enums import SsoProtocolType
 from orchestration_platform.governance.sso.models import (
     AssertionPrincipal,
     IdpConfiguration,
-    SsoLoginResult,
 )
 from orchestration_platform.governance.sso.replay_guard import ReplayGuard
 from orchestration_platform.governance.sso.jit_provisioner import (

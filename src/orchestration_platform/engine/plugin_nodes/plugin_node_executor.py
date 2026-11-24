@@ -18,7 +18,6 @@ from orchestration_platform.domain.errors import (
     NODE_LIFECYCLE_ERROR,
     NODE_MANIFEST_INVALID,
 )
-from orchestration_platform.domain.models.common import JsonValue
 from orchestration_platform.domain.models.enums import NodeType
 from orchestration_platform.domain.models.node_configurations import (
     PluginNodeConfiguration,

@@ -34,28 +34,28 @@ from orchestration_platform.api.instance_read_through import (
 )
 from orchestration_platform.application.engine_wiring import build_engine_settings
 from orchestration_platform.application.execution_runner import (
-    ExecutionSubmitter,
-    InstanceRegistry,
+    ExecutionSubmitter,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    InstanceRegistry,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
     InstanceRuntime,
     NodeEventCallbackImpl,
     _TERMINAL_STATUSES,
     _acquire_checkpoint_repository,
-    _build_executor_registry,
-    _build_llm_client,
-    _build_tool_invokers,
+    _build_executor_registry,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _build_llm_client,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _build_tool_invokers,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
     _execution_submitter,
     _executor_registry,
     _instance_registry,
-    _platform_tool_get_instance,
-    _platform_tool_get_workflow,
-    _platform_tool_validate_workflow,
-    _publish_instance_domain_event,
-    _read_mcp_market_registrations,
-    _run_coro_sync_for_assembly,
-    _tool_invokers,
+    _platform_tool_get_instance,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _platform_tool_get_workflow,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _platform_tool_validate_workflow,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _publish_instance_domain_event,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _read_mcp_market_registrations,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _run_coro_sync_for_assembly,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
+    _tool_invokers,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
     bind_domain_event_publisher_source,
     build_execution_queue,
-    run_and_record,
+    run_and_record,  # noqa: F401  # 再导出：测试/装配经本路由模块消费
 )
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (

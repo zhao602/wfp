@@ -8,16 +8,18 @@
 #   3. 用于无 PostgreSQL 环境与测试。
 # =============================================================================
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.governance.audit.hash_chain_verifier import (
     HashChainVerifier,
 )
 from orchestration_platform.governance.audit.models import AuditLogEntry
+
+if TYPE_CHECKING:
+    from orchestration_platform.governance.audit.tombstone.models import TombstoneBatchResult
 
 
 class LocalFileAuditLogRepository:

@@ -16,7 +16,6 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IQuotaInterceptor,
 )
 from orchestration_platform.governance.tenant.quota_checker import QuotaChecker
 

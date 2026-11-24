@@ -16,7 +16,6 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IAuthInterceptor,
 )
 from orchestration_platform.governance.rbac.permission_checker import (
     RbacPermissionChecker,

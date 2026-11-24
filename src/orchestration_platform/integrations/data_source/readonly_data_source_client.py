@@ -8,7 +8,6 @@
 #   2. 空结果 → 成功 + 空数据集（不失败）。
 # =============================================================================
 
-from typing import List, Dict, Any
 
 from orchestration_platform.integrations.abstractions.external_clients import DataSourceResult
 from orchestration_platform.integrations.data_source.read_only_statement_guard import (

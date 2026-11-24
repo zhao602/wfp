@@ -18,7 +18,7 @@
 # =============================================================================
 
 import json
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from pydantic import ValidationError
 

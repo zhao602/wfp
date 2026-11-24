@@ -11,7 +11,11 @@ import asyncio
 import json
 from typing import Any, Dict
 
-from orchestration_platform.domain.errors import MCP_CONNECTION_FAILED, DomainError
+from orchestration_platform.domain.errors import (
+    MCP_CONNECTION_FAILED,
+    MCP_TOOL_TIMEOUT,
+    DomainError,
+)
 
 
 class StdioTransport:
@@ -68,7 +72,6 @@ class StdioTransport:
             )
             return json.loads(line.decode("utf-8"))
         except asyncio.TimeoutError:
-            from orchestration_platform.domain.errors import MCP_TOOL_TIMEOUT, DomainError
             raise DomainError(MCP_TOOL_TIMEOUT, "stdio 请求超时")
         except Exception as exc:
             raise DomainError(MCP_CONNECTION_FAILED, f"stdio 响应读取失败: {type(exc).__name__}")

@@ -8,6 +8,7 @@
 #   2. 使用 httpx（延迟导入）发送请求与接收 SSE 事件。
 # =============================================================================
 
+from importlib.util import find_spec
 from typing import Any, Dict
 
 from orchestration_platform.domain.errors import MCP_CONNECTION_FAILED, DomainError
@@ -57,9 +58,7 @@ class SseTransport:
         if not self._connected:
             await self.connect()
 
-        try:
-            import httpx
-        except ImportError:
+        if find_spec("httpx") is None:
             return {"error": "httpx not available"}
 
         try:

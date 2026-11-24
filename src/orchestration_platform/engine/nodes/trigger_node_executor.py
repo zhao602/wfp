@@ -10,7 +10,7 @@
 # =============================================================================
 
 from orchestration_platform.domain.errors import TRIGGER_PAYLOAD_MAPPING_FAILED
-from orchestration_platform.domain.models.enums import NodeType, TriggerType
+from orchestration_platform.domain.models.enums import NodeType
 from orchestration_platform.domain.models.node_configurations import TriggerNodeConfiguration
 from orchestration_platform.engine.input_assembly import (
     AssemblyFailure,

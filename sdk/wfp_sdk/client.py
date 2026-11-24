@@ -19,7 +19,6 @@ from wfp_sdk._sse import STREAM_END, parse_sse_frame
 from wfp_sdk.errors import (
     CLIENT_TIMEOUT,
     TRANSPORT_ERROR,
-    WfpError,
     WfpTimeoutError,
     WfpTransportError,
     error_from_response,

@@ -9,9 +9,12 @@
 # =============================================================================
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from orchestration_platform.governance.audit.models import AuditLogEntry
+
+if TYPE_CHECKING:
+    from orchestration_platform.governance.audit.tombstone.models import TombstoneBatchResult
 
 
 @runtime_checkable

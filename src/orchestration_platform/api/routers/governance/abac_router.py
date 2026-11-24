@@ -10,12 +10,11 @@
 # =============================================================================
 
 import logging
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.enums import (
     AttributeSource,
     ConditionOperator,

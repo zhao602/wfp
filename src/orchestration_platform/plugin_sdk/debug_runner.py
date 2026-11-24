@@ -137,7 +137,7 @@ class LocalDebugRunner:
             ):
                 return attr()
 
-        raise ValueError(f"入口文件中未找到 PluginNodeBase 子类")
+        raise ValueError("入口文件中未找到 PluginNodeBase 子类")
 
     @staticmethod
     def _run_phase(phase: str, func, *args) -> LifecycleLog:

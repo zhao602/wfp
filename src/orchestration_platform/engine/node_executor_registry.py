@@ -7,7 +7,7 @@
 #   2. 新增节点类型只需实现 NodeExecutor 并调用 register 登记。
 # =============================================================================
 
-from typing import Dict, Optional
+from typing import Dict
 
 from orchestration_platform.domain.errors import NODE_TOOL_NOT_FOUND, DomainError
 from orchestration_platform.domain.models.enums import NodeType

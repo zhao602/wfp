@@ -3,12 +3,19 @@
 # 贡献仓储抽象（mcp_tool_market/contribution/abstractions/contribution_repository.py）
 # =============================================================================
 
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, List, Optional, Protocol, runtime_checkable
 
 from orchestration_platform.domain.models.enums import ContributionState
 from orchestration_platform.mcp_tool_market.contribution.models import (
     NodeContribution,
 )
+
+if TYPE_CHECKING:
+    from orchestration_platform.mcp_tool_market.contribution.models import (
+        ScanReport,
+        SignatureInfo,
+    )
+    from orchestration_platform.plugin_sdk.models import PluginManifest
 
 
 @runtime_checkable

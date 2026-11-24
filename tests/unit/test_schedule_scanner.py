@@ -156,7 +156,6 @@ class _CountingStubExecutor:
     """计数桩执行器（agent 节点桩，不依赖 LLM）。"""
 
     def __init__(self, node_type):
-        from orchestration_platform.domain.models.enums import NodeType as _NodeType
 
         self._node_type = node_type
         self.node_calls: dict = {}
@@ -861,7 +860,6 @@ class TestCronFireChainEndToEnd:
         self, routed_storage_root, stubbed_agent_executor
     ):
         """定义缺失：fire 返回 None 不重发；mark_fired 先于 fire 已留痕。"""
-        import orchestration_platform.api.routers.execution_instance_router as router_mod
 
         repository = RepositoryFactory.create_workflow_repository()  # 仓储空
         clock = _FakeClock(datetime(2026, 11, 19, 10, 0))

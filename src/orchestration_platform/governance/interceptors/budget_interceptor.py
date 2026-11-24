@@ -18,7 +18,6 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IBudgetInterceptor,
 )
 
 

@@ -19,7 +19,6 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pytest
 
 from orchestration_platform.domain.models.domain_event import DomainEvent
 from orchestration_platform.domain.models.enums import (

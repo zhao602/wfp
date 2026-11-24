@@ -17,7 +17,6 @@ from orchestration_platform.governance.resource.resource_pool import ResourcePoo
 from orchestration_platform.domain.models.enums import (
     InstancePriority,
     ResourcePoolType,
-    SchedulerPolicyType,
 )
 
 
@@ -40,7 +39,7 @@ def test_priority_queue():
 async def test_resource_pool():
     """A66/A67: 资源池分配与释放。"""
     manager = ResourcePoolManager()
-    pool = manager.create_pool(
+    manager.create_pool(
         pool_id="test_pool",
         pool_type=ResourcePoolType.CONCURRENCY_SLOT,
         total_capacity=10,

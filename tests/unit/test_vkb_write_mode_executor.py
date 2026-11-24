@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 import orchestration_platform.integrations.vector_kb_management.ingestion as ing_module
 from orchestration_platform.domain.models.enums import NodeType

@@ -28,7 +28,6 @@ from orchestration_platform.engine.nodes.base import (
 )
 from orchestration_platform.integrations.abstractions.external_clients import (
     IToolInvoker,
-    ToolResult,
 )
 
 

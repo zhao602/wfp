@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from orchestration_platform.domain.errors import WorkflowValidationError
-from orchestration_platform.domain.models.common import ValidationReport
 from orchestration_platform.domain.validation.validation_report_builder import (
     ValidationReportBuilder,
 )

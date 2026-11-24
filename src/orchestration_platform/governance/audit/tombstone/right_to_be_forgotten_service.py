@@ -14,13 +14,11 @@ from typing import List
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.governance.audit.tombstone.abstractions.tombstone_service import (
-    IRightToBeForgottenService,
     ITombstoneService,
 )
 from orchestration_platform.governance.audit.tombstone.models import (
     ForgetResult,
     RejectResult,
-    TombstoneResult,
 )
 from orchestration_platform.governance.persistence.abstractions.audit_log_repository import (
     IAuditLogRepository,

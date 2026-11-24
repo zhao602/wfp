@@ -15,7 +15,6 @@ import logging
 import time
 from typing import List, Optional, Tuple
 
-import pytest
 
 import orchestration_platform.governance.rbac.permission_checker as checker_module
 from orchestration_platform.configuration.settings import Settings

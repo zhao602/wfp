@@ -25,9 +25,7 @@ from orchestration_platform.domain.errors import (
     AUTH_TOKEN_INVALID,
 )
 from orchestration_platform.domain.models.enums import (
-    OperationType,
     ResourceScope,
-    ResourceType,
 )
 from orchestration_platform.governance.auth.jwt_tokens import (
     TokenExpiredError,

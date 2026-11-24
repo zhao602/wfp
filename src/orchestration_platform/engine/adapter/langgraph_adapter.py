@@ -44,7 +44,6 @@ from orchestration_platform.domain.models.enums import (
     ControlFlowKind,
     InstanceStatus,
     NodeType,
-    TriggerType,
 )
 from orchestration_platform.domain.models.execution_instance import (
     ExecutionInstance,
@@ -212,7 +211,7 @@ class LangGraphAdapter:
             )
         raise DomainError(
             STATE_CHECKPOINT_NOT_FOUND,
-            f"检查点恢复不在 LangGraph 等价子集内（排除③），走内置引擎链路",
+            "检查点恢复不在 LangGraph 等价子集内（排除③），走内置引擎链路",
         )
 
     async def rollback(
@@ -235,7 +234,7 @@ class LangGraphAdapter:
             )
         raise DomainError(
             STATE_CHECKPOINT_NOT_FOUND,
-            f"回滚不在 LangGraph 等价子集内（排除③），走 rollback_replay_service",
+            "回滚不在 LangGraph 等价子集内（排除③），走 rollback_replay_service",
         )
 
     async def replay(self, request: ReplayRequest) -> ReplayResult:
@@ -250,7 +249,7 @@ class LangGraphAdapter:
             )
         raise DomainError(
             STATE_CHECKPOINT_NOT_FOUND,
-            f"重放不在 LangGraph 等价子集内（排除③），走 rollback_replay_service",
+            "重放不在 LangGraph 等价子集内（排除③），走 rollback_replay_service",
         )
 
     async def submit_review(

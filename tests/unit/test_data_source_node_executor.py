@@ -8,9 +8,8 @@
 # =============================================================================
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from orchestration_platform.domain.errors import NODE_DATASOURCE_UNAVAILABLE, NODE_TOOL_NOT_FOUND, DomainError
 from orchestration_platform.domain.models.enums import DataSourceType, NodeType

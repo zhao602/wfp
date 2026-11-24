@@ -11,7 +11,6 @@ from orchestration_platform.domain.models.enums import DataSourceType
 from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceConnectionConfig,
     DataSourceReadRequest,
-    PaginationParams,
 )
 from orchestration_platform.integrations.data_source_connectors.connector_registry import (
     DataSourceConnectorRegistry,

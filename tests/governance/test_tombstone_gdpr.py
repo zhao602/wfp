@@ -15,7 +15,6 @@
 import asyncio
 import unittest
 from datetime import datetime, timezone
-from typing import List
 
 from orchestration_platform.domain.models.enums import (
     AuditOperationResult,
@@ -23,10 +22,6 @@ from orchestration_platform.domain.models.enums import (
     ResourceType,
 )
 from orchestration_platform.governance.audit.models import AuditLogEntry
-from orchestration_platform.governance.audit.tombstone.models import (
-    ForgetResult,
-    TombstoneResult,
-)
 from orchestration_platform.governance.audit.tombstone.right_to_be_forgotten_service import (
     RightToBeForgottenService,
 )

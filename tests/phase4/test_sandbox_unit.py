@@ -27,7 +27,6 @@ from orchestration_platform.domain.models.enums import (
 )
 from orchestration_platform.integrations.sandbox.models import (
     SandboxPolicy,
-    SandboxInvocation,
 )
 from orchestration_platform.integrations.sandbox.path_guard import PathGuard
 from orchestration_platform.integrations.sandbox.network_filter import NetworkFilter
@@ -233,9 +232,6 @@ class TestViolationExitAssertion(unittest.TestCase):
 
     def test_violation_result_success_false(self) -> None:
         """违规非空时 success=False。"""
-        from orchestration_platform.integrations.sandbox.logical_isolation_runtime import (
-            LogicalIsolationRuntime,
-        )
         from orchestration_platform.integrations.sandbox.models import (
             SandboxExecutionResult,
             SandboxViolationRecord,

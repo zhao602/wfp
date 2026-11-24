@@ -15,7 +15,6 @@
 #   3. cron 流不带 yaml_text（仓储定义流；重建走仓储钉版本取回）。
 # =============================================================================
 
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 

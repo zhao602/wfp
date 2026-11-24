@@ -13,10 +13,7 @@
 #   8. API 路由条件注册（evaluation_enabled）。
 # =============================================================================
 
-import asyncio
 import json
-import os
-import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -35,9 +32,6 @@ from orchestration_platform.domain.errors import (
 from orchestration_platform.domain.models.enums import (
     EvaluationTaskState,
     EvaluationType,
-)
-from orchestration_platform.governance.evaluation.abstractions.clear_scorer import (
-    IClearScorer,
 )
 from orchestration_platform.governance.evaluation.abstractions.evaluation_repository import (
     IEvaluationRepository,

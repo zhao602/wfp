@@ -10,15 +10,13 @@
 # =============================================================================
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 
 from orchestration_platform.domain.errors import (
-    INSTANCE_NOT_FOUND,
     STATE_CHECKPOINT_CORRUPTED,
     STATE_CHECKPOINT_NOT_FOUND,
     STATE_INSTANCE_RUNNING,
     DomainError,
-    ResourceNotFoundError,
 )
 from orchestration_platform.domain.models.checkpoint import Checkpoint
 from orchestration_platform.domain.models.enums import (

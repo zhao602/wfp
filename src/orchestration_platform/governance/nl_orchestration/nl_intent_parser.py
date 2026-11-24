@@ -243,7 +243,7 @@ class NLIntentParser:
             f"  名称: {target_definition.name}\n"
             f"  节点列表:\n"
             + "\n".join(nodes_desc)
-            + f"\n  连线列表:\n"
+            + "\n  连线列表:\n"
             + "\n".join(edges_desc)
             + f"\n\n修改指令：{directive}"
         )

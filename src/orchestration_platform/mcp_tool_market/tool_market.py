@@ -13,7 +13,6 @@ from typing import List, Optional
 from orchestration_platform.domain.errors import MCP_TOOL_REGISTRATION_CONFLICT, DomainError
 from orchestration_platform.domain.models.enums import ToolPermission
 from orchestration_platform.mcp_tool_market.models import (
-    CallerIdentity,
     McpToolDescriptor,
     McpToolRegistration,
     RegistrationResult,

@@ -5,7 +5,6 @@
 # =============================================================================
 
 import asyncio
-import os
 import tempfile
 import pytest
 
@@ -14,7 +13,6 @@ from orchestration_platform.mcp_tool_market.models import (
     CallerIdentity,
     McpToolDescriptor,
     McpToolRegistration,
-    RegistrationResult,
 )
 from orchestration_platform.mcp_tool_market.tool_market import McpToolMarket
 from orchestration_platform.mcp_tool_market.version_manager import VersionManager

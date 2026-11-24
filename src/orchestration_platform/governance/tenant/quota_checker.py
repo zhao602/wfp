@@ -8,7 +8,6 @@
 #   3. 超限返回 TENANT_QUOTA_EXCEEDED。
 # =============================================================================
 
-from typing import Optional
 
 from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,

@@ -11,7 +11,7 @@
 # =============================================================================
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.enums import InstancePriority

@@ -6,7 +6,6 @@
 #   按 tool_id + version 唯一存储，重启后不丢失。
 # =============================================================================
 
-import json
 import os
 from typing import List, Optional
 

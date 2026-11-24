@@ -18,7 +18,6 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from orchestration_platform.application.engine_wiring import build_engine_settings
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import DomainError
 from orchestration_platform.engine.plugin_nodes.plugin_node_loader import (
     PluginNodeLoader,
@@ -86,7 +85,6 @@ async def install_plugin_node(
     接受 multipart 上传，将包解压到临时目录后加载。
     返回 manifest 校验结果与规范差异说明。
     """
-    settings = get_settings()
 
     # 保存上传文件到临时目录
     with tempfile.TemporaryDirectory() as tmp_dir:

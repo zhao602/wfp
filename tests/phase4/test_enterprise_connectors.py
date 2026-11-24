@@ -7,7 +7,6 @@
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock
 
 from orchestration_platform.domain.errors import CONNECTOR_SCOPE_DENIED, DomainError
 from orchestration_platform.domain.models.enums import DataSourceType
@@ -19,7 +18,6 @@ from orchestration_platform.integrations.data_source_connectors.enterprise.data_
 )
 from orchestration_platform.integrations.data_source_connectors.enterprise.models import (
     DataScope,
-    EnterpriseConnectorConfig,
 )
 
 

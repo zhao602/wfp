@@ -7,6 +7,7 @@
 #   将第一阶段分散的 HTTP 传输逻辑独立化为统一传输模块。
 # =============================================================================
 
+from importlib.util import find_spec
 from typing import Any, Dict
 
 from orchestration_platform.domain.errors import MCP_CONNECTION_FAILED, DomainError
@@ -53,9 +54,7 @@ class HttpTransport:
         if not self._connected:
             await self.connect()
 
-        try:
-            import httpx
-        except ImportError:
+        if find_spec("httpx") is None:
             return {"error": "httpx not available"}
 
         try:

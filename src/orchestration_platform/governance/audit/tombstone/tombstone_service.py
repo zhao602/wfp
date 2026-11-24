@@ -11,9 +11,6 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from orchestration_platform.governance.audit.tombstone.abstractions.tombstone_service import (
-    ITombstoneService,
-)
 from orchestration_platform.governance.audit.tombstone.models import TombstoneResult
 from orchestration_platform.governance.persistence.abstractions.audit_log_repository import (
     IAuditLogRepository,

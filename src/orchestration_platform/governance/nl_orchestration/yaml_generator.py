@@ -19,7 +19,7 @@
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional, get_args
+from typing import Any, Dict, get_args
 
 import yaml
 

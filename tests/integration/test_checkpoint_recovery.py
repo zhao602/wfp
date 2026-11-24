@@ -7,7 +7,6 @@
 import pytest
 
 from orchestration_platform.workflow.yaml_workflow_parser import YamlWorkflowParser
-from orchestration_platform.engine.graph_compiler import GraphCompiler
 from orchestration_platform.engine.shared_state_manager import SharedStateManager
 from orchestration_platform.domain.models.checkpoint import Checkpoint
 from orchestration_platform.domain.models.shared_state import SharedState

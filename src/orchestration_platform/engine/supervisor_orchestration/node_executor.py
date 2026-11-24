@@ -13,7 +13,6 @@ import time
 from typing import Any, Dict, Optional
 
 from orchestration_platform.domain.errors import (
-    SUP_ROUTE_DECISION_FAILED,
     SUP_SUB_ORCHESTRATION_FAILED,
     DomainError,
 )
@@ -30,7 +29,6 @@ from orchestration_platform.engine.supervisor_orchestration.models import (
 )
 from orchestration_platform.engine.supervisor_orchestration.orchestration_state_store import (
     InMemoryStateStore,
-    create_state_store,
 )
 from orchestration_platform.engine.supervisor_orchestration.route_decision_table import (
     RouteDecisionTable,

@@ -34,7 +34,6 @@ from orchestration_platform.plugin_sdk.models import (
     LifecycleLog,
     PluginManifest,
     PluginNodeRegistration,
-    ValidationResult,
 )
 from orchestration_platform.plugin_sdk.package_validator import (
     NodePackageValidator,
@@ -236,7 +235,7 @@ class PluginNodeLoader:
         卸载失败（teardown 异常）不阻断移除注册，仅记录日志。
         """
         instance = self._instances.pop(node_name, None)
-        registration = self._registrations.pop(node_name, None)
+        self._registrations.pop(node_name, None)
         self._digests.pop(node_name, None)
         logs = self._lifecycle_logs.get(node_name, [])
 

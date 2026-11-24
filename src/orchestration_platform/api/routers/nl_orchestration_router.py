@@ -17,8 +17,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from orchestration_platform.application.engine_wiring import build_engine_settings
-from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.domain.models.enums import IntentType
 from orchestration_platform.governance.nl_orchestration.models import NLOrchestrationResult
 
 _logger = logging.getLogger(__name__)

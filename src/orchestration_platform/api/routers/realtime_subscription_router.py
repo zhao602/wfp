@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException, Query
 from orchestration_platform.engine.realtime_subscription.models import (
     RealtimeSubscription,
     SubscriptionCreateRequest,
-    SubscriptionStatus,
     SubscriptionTriggerEvent,
 )
 from orchestration_platform.engine.realtime_subscription.subscription_manager import (

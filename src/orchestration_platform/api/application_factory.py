@@ -182,7 +182,6 @@ def create_app() -> FastAPI:
     )
 
     settings = get_settings()
-    metrics = MetricsCollector()
 
     # ---------------- DI 容器装配（arch_review_gap_b4_architecture B4-C2，DC-06/DC-B4-01） ----------------
     # 手工轻量容器：仅启动期装配一次；不引 DI 框架（HC-06）；provider 惰性构造单例
@@ -266,7 +265,7 @@ def create_app() -> FastAPI:
     app.state.container = container
 
     settings = container.resolve("settings")
-    metrics = container.resolve("metrics")
+    metrics_service = container.resolve("metrics")
 
     # ---------------- 启动期强校验（arch_review_v2_tasks G1，DC-05/卡 A5） ----------------
     # 装配最早点执行弱密钥 fail-fast：production 命中黑名单拒绝启动
@@ -307,7 +306,7 @@ def create_app() -> FastAPI:
     # ---------------- 指标 ----------------
     @app.get("/metrics")
     async def metrics() -> dict:
-        return metrics.snapshot()
+        return metrics_service.snapshot()
 
     # ---------------- 路由注册 ----------------
     from orchestration_platform.api.routers.workflow_definition_router import router as wf_router

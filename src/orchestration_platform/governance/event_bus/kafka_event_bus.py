@@ -10,9 +10,8 @@
 
 import json
 import logging
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator
 
-from orchestration_platform.governance.event_bus.abstractions.event_bus import IEventBus
 from orchestration_platform.governance.event_bus.models import (
     EventMessage,
     PublishResult,

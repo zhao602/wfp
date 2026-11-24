@@ -463,7 +463,6 @@ class _CountingStubExecutor:
     """计数桩执行器（路由级 agent 桩，after_review 不依赖 LLM）。"""
 
     def __init__(self, node_type):
-        from orchestration_platform.domain.models.enums import NodeType as _NodeType
 
         self._node_type = node_type
         self.node_calls: dict = {}

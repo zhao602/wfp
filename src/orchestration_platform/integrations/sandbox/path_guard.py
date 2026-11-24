@@ -11,7 +11,7 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from orchestration_platform.domain.models.enums import ViolationType
 from orchestration_platform.integrations.sandbox.models import (

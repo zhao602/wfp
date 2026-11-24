@@ -8,7 +8,7 @@
 #   - modify_from_nl：从自然语言修改指令更新既有工作流定义
 # =============================================================================
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from orchestration_platform.domain.models.workflow_definition import WorkflowDefinition
 from orchestration_platform.governance.nl_orchestration.models import NLOrchestrationResult

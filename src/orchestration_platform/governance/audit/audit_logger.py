@@ -9,7 +9,6 @@
 #   4. 哈希链保证日志完整性。
 # =============================================================================
 
-import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional

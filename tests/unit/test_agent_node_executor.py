@@ -17,7 +17,6 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from orchestration_platform.domain.errors import (
     NODE_AGENT_OUTPUT_INVALID,

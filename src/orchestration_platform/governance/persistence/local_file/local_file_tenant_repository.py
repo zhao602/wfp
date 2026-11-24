@@ -9,7 +9,6 @@
 #   3. 用于无 PostgreSQL 环境与测试。
 # =============================================================================
 
-import json
 from pathlib import Path
 from typing import List, Optional
 

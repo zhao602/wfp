@@ -12,13 +12,11 @@
 
 import ast
 import logging
-import os
 import time
 import uuid
 from pathlib import Path
 from typing import List
 
-from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.mcp_tool_market.contribution.models import (
     ScanFinding,
     ScanReport,
@@ -76,7 +74,6 @@ class StaticSecurityScanner:
         """
         start = time.monotonic()
         findings: List[ScanFinding] = []
-        settings = get_settings()
 
         pkg_path = Path(package_path)
         if not pkg_path.exists():

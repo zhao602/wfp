@@ -3,14 +3,13 @@
 # 贡献服务抽象（mcp_tool_market/contribution/abstractions/contribution_service.py）
 # =============================================================================
 
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import List, Protocol, runtime_checkable
 
 from orchestration_platform.mcp_tool_market.contribution.models import (
     ContributionSubmitRequest,
     ContributionSubmitResult,
     ContributionTransitionRequest,
     ContributionTransitionResult,
-    NodeContribution,
     ScanReport,
 )
 

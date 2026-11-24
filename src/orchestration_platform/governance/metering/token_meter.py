@@ -10,7 +10,6 @@
 # =============================================================================
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from orchestration_platform.governance.metering.models import TokenUsageRecord

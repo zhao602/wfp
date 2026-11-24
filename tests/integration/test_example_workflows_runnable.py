@@ -15,9 +15,6 @@ from orchestration_platform.engine.graph_compiler import GraphCompiler
 from orchestration_platform.domain.validation.graph_topology_validator import (
     GraphTopologyValidator,
 )
-from orchestration_platform.domain.validation.node_configuration_validator import (
-    NodeConfigurationValidator,
-)
 
 
 EXAMPLES_ROOT = Path(__file__).resolve().parent.parent.parent / "examples"

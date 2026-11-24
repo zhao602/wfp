@@ -2,7 +2,7 @@
 # Redis 缓存管理路由（api/routers/governance/cache_router.py）
 # =============================================================================
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["缓存管理"])

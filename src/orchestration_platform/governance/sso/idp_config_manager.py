@@ -12,8 +12,6 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.domain.models.enums import SsoProtocolType
 from orchestration_platform.governance.sso.credential_cipher import CredentialCipher
 from orchestration_platform.governance.sso.models import IdpConfiguration
 
@@ -33,7 +31,6 @@ class IdpConfigManager:
         cipher: Optional[CredentialCipher] = None,
     ) -> None:
         """构造配置管理器。"""
-        settings = get_settings()
         self._root = Path(storage_root or "./.data/sso/idp_configs")
         self._root.mkdir(parents=True, exist_ok=True)
         self._cipher = cipher or CredentialCipher()

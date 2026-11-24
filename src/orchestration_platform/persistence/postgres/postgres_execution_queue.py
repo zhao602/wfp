@@ -21,9 +21,6 @@ from typing import Any, Dict, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.execution_job import ExecutionJob
-from orchestration_platform.persistence.abstractions.execution_queue import (
-    IExecutionQueue,
-)
 from orchestration_platform.persistence.postgres.tenant_scoped_base import (
     TenantScopedPostgresRepository,
 )

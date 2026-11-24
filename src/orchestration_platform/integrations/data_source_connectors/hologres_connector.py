@@ -8,7 +8,6 @@
 #   3. 凭据（AccessKey）不出现在日志或异常消息中。
 # =============================================================================
 
-from typing import Any, Dict, List
 
 from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceConnectionConfig,

@@ -136,7 +136,7 @@ class TestClassifyStaticVerdictMessageHygiene:
 
         assert mapping is not None
         assert mapping[0] == CODE_BANNED_CONSTRUCT
-        assert f"共 7 项命中" in mapping[1]
+        assert "共 7 项命中" in mapping[1]
         assert f"等 {7 - FINDINGS_DISPLAY_LIMIT} 项" in mapping[1]
         assert mapping[1].count("敏感模块导入") == FINDINGS_DISPLAY_LIMIT
 

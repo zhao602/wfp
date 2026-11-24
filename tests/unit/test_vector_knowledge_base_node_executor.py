@@ -57,7 +57,6 @@ from orchestration_platform.domain.validation.node_configuration_validator impor
 )
 from orchestration_platform.engine.nodes.base import (
     NodeExecutionContext,
-    NodeExecutionResult,
 )
 from orchestration_platform.engine.nodes.vector_knowledge_base_node_executor import (
     VectorKnowledgeBaseNodeExecutor,

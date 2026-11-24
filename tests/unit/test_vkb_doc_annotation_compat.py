@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import sys
-import tempfile
 from pathlib import Path
 
 from orchestration_platform.integrations.local_vector_database.models import (

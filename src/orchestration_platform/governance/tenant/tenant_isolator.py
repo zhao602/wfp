@@ -8,7 +8,7 @@
 #   3. 跨租户访问被拦截。
 # =============================================================================
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,

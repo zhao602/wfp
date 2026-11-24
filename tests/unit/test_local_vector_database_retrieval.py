@@ -313,8 +313,8 @@ class TestBruteForceIndexSearch:
     def test_search_filter_fewer_candidates_than_k(self, tmp_path):
         # 过滤后候选少于 K → 返回全部满足者（不放大、不失败）
         store, index = _make_index(tmp_path)
-        source_fn = (
-            lambda i: {"type": "X"} if i in (3, 7, 11) else {"type": "Y"}  # noqa: E731
+        source_fn = (  # noqa: E731
+            lambda i: {"type": "X"} if i in (3, 7, 11) else {"type": "Y"}
         )
         records = _seed_records(count=20, dim=6, source_fn=source_fn)
         for record in records:
@@ -456,7 +456,7 @@ class TestOptionalBackendProbe:
         # 无依赖环境：导入 retrieval + 构造 probe 不崩溃、不引入可选依赖
         import sys
 
-        probe = OptionalBackendProbe()
+        OptionalBackendProbe()
         for name in OptionalBackendProbe.DEFAULT_CANDIDATES:
             assert name not in sys.modules
 

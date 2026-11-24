@@ -15,7 +15,6 @@
 import json
 import logging
 
-import pytest
 
 from orchestration_platform.governance.event_export.models import (
     WebhookSubscription,

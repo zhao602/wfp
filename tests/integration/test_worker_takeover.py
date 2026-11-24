@@ -24,7 +24,6 @@ import asyncio
 import contextlib
 from pathlib import Path
 
-import pytest
 
 from orchestration_platform.api.instance_read_through import (
     read_instance_snapshot,

@@ -23,9 +23,6 @@ from orchestration_platform.domain.errors import (
     DATA_TRANSFORM_REGEX_UNSAFE_PATTERN,
 )
 from orchestration_platform.domain.models.enums import DataTransformOperation
-from orchestration_platform.domain.models.node_configurations import (
-    DataTransformOperationParams,
-)
 from orchestration_platform.engine.nodes.data_transform_ops.masking import (
     MASKING_IRREVERSIBLE_NOTE,
     MaskingRuleSet,

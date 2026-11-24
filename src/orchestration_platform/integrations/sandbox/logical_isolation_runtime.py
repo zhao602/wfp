@@ -20,9 +20,6 @@ from orchestration_platform.domain.errors import (
     SANDBOX_INTERNAL_ERROR,
     SANDBOX_TIMEOUT,
 )
-from orchestration_platform.integrations.sandbox.abstractions.sandbox_runtime import (
-    ISandboxRuntime,
-)
 from orchestration_platform.integrations.sandbox.models import (
     SandboxExecutionResult,
     SandboxInvocation,

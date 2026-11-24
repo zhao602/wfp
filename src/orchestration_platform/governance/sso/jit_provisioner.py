@@ -3,7 +3,7 @@
 # =============================================================================
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import SSO_ATTR_MISSING, DomainError

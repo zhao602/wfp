@@ -4,11 +4,7 @@
 # 覆盖验收：B7（业务层对 LangGraph 零依赖）
 # =============================================================================
 
-import pytest
 
-from orchestration_platform.domain.validation.graph_topology_validator import (
-    GraphTopologyValidator,
-)
 
 
 class TestNoDirectFrameworkDependency:

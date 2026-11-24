@@ -68,7 +68,6 @@ from orchestration_platform.integrations.local_vector_database.embedding import 
 from orchestration_platform.integrations.local_vector_database.models import (
     EMBEDDING_KIND_HASH,
     EMBEDDING_KIND_REAL,
-    RecordFailure,
     VectorRecord,
 )
 from orchestration_platform.integrations.local_vector_database.service import (

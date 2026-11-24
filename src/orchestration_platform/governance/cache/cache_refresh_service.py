@@ -4,7 +4,6 @@
 # =============================================================================
 
 import logging
-from typing import Optional
 
 from orchestration_platform.governance.cache.abstractions.cache_backend import (
     ICacheBackend,

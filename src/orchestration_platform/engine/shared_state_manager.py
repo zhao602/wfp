@@ -9,7 +9,7 @@
 #   4. 不做持久化——检查点由调度器统一写入。
 # =============================================================================
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from orchestration_platform.domain.models.common import JsonValue
 from orchestration_platform.domain.models.shared_state import SharedState

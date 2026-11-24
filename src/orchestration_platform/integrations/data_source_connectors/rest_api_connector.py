@@ -4,14 +4,13 @@
 # 职责：以只读方式调用 REST API 获取数据，支持分页与超时。
 # =============================================================================
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceConnectionConfig,
     DataSourceReadRequest,
     DataSourceReadResult,
     DataSchema,
-    SchemaField,
 )
 from orchestration_platform.integrations.data_source_connectors.probe_support import (
     PROBE_TIMEOUT_SECONDS,

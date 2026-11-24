@@ -8,12 +8,11 @@
 #   3. 行为与第二阶段一致。
 # =============================================================================
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.models.domain_event import DEFAULT_TENANT_ID
 from orchestration_platform.domain.models.enums import (
-    InstancePriority,
     OperationType,
     ResourceScope,
     ResourceType,

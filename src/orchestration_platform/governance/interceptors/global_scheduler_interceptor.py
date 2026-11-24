@@ -19,11 +19,9 @@ from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    IGlobalSchedulerInterceptor,
 )
 from orchestration_platform.governance.scheduler.global_scheduler import (
     GlobalScheduler,
-    ScheduleResult,
 )
 
 

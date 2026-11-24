@@ -17,9 +17,6 @@ from typing import List, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import EVAL_SCENARIO_INVALID, DomainError
-from orchestration_platform.governance.evaluation.abstractions.evaluation_repository import (
-    IEvaluationRepository,
-)
 from orchestration_platform.governance.evaluation.models import (
     BaselineRecord,
     EvaluationScenarioSet,

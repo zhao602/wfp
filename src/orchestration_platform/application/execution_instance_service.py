@@ -18,7 +18,6 @@ from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.domain.errors import (
     INSTANCE_NOT_FOUND,
     STATE_CHECKPOINT_CORRUPTED,
-    STATE_CHECKPOINT_NOT_FOUND,
     ResourceNotFoundError,
     DomainError,
 )
@@ -26,11 +25,9 @@ from orchestration_platform.domain.models.checkpoint import Checkpoint
 from orchestration_platform.domain.models.enums import (
     EventType,
     InstanceStatus,
-    NodeExecutionStatus,
 )
 from orchestration_platform.domain.models.execution_event import ExecutionEvent
 from orchestration_platform.domain.models.execution_instance import (
-    DefinitionRef,
     ExecutionInstance,
     StartInstanceRequest,
 )

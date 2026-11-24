@@ -16,7 +16,6 @@ import uuid
 from typing import Optional
 
 from orchestration_platform.configuration.settings import get_settings
-from orchestration_platform.domain.errors import SANDBOX_DEGRADED, SANDBOX_TIMEOUT
 from orchestration_platform.integrations.sandbox.abstractions.sandbox_runtime import (
     IContainerRuntime,
     ISandboxRuntime,

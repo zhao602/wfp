@@ -33,7 +33,7 @@ import re
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Callable, List, Mapping, Optional, Set
+from typing import Callable, Dict, List, Mapping, Optional, Set
 
 from orchestration_platform.domain.errors import (
     VECTOR_KB_DIMENSION_BINDING_CONFLICT,
@@ -44,6 +44,9 @@ from orchestration_platform.domain.errors import (
     VECTOR_KB_KNOWLEDGE_BASE_ALREADY_EXISTS,
     VECTOR_KB_KNOWLEDGE_BASE_NOT_FOUND,
     VECTOR_KB_ANNOTATION_INVALID,
+    VECTOR_KB_ANNOTATION_LIMIT_EXCEEDED,
+    VECTOR_KB_CHUNK_NOT_FOUND,
+    VECTOR_KB_DRAFT_VERSION_CONFLICT,
     VECTOR_KB_EMBEDDING_UNAVAILABLE,
     VECTOR_KB_STORAGE_UNAVAILABLE,
     VECTOR_KB_UNKNOWN_INGESTION_JOB,

@@ -13,11 +13,7 @@
 # =============================================================================
 
 import logging
-from datetime import datetime, timezone
 
-from orchestration_platform.governance.evaluation.abstractions.clear_scorer import (
-    IClearScorer,
-)
 from orchestration_platform.governance.evaluation.models import (
     AgentTrajectory,
     ClearScore,

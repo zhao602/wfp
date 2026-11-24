@@ -11,7 +11,6 @@
 #   2. list_permissions_for_user 含组织节点继承与角色继承。
 # =============================================================================
 
-import json
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 

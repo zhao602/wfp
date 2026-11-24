@@ -19,10 +19,8 @@ from orchestration_platform.domain.errors import (
     MCP_TOOL_TIMEOUT,
     DomainError,
 )
-from orchestration_platform.domain.models.enums import McpTransportType
 from orchestration_platform.integrations.mcp.connection_pool import McpConnectionPool
 from orchestration_platform.integrations.mcp.tool_discovery_cache import ToolDiscoveryCache
-from orchestration_platform.integrations.mcp.transports.base import IMcpTransport
 from orchestration_platform.mcp_tool_market.models import McpToolDescriptor
 
 

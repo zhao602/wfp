@@ -6,7 +6,7 @@
 #             INV-05（旧 YAML 等价链长 1）、INV-12（开关默认 False）、INV-15（上限常量）
 # =============================================================================
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pytest
 
@@ -30,8 +30,6 @@ from orchestration_platform.domain.models.enums import (
 )
 from orchestration_platform.domain.models.node_configurations import (
     DataTransformNodeConfiguration,
-    DataTransformOperationParams,
-    DataTransformOutputFormatParams,
     DataTransformStep,
     MaskingCustomPattern,
     normalize_operations,
@@ -44,7 +42,6 @@ from orchestration_platform.engine.nodes.data_transform_ops import (
     MAX_REGEX_INPUT_LENGTH,
     MAX_REGEX_PATTERN_LENGTH,
     OPERATION_REGISTRY,
-    OperationHandler,
     StepContext,
     StepOutcome,
     get_handler,

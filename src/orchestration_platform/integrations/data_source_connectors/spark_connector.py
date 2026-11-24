@@ -16,7 +16,6 @@ from orchestration_platform.integrations.data_source_connectors.models import (
     DataSourceReadRequest,
     DataSourceReadResult,
     DataSchema,
-    SchemaField,
 )
 from orchestration_platform.integrations.data_source_connectors.probe_support import (
     PROBE_TIMEOUT_SECONDS,

@@ -16,7 +16,7 @@ import logging
 import traceback
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
+from typing import Any, Callable, Dict, Optional, Protocol, Set, Tuple, runtime_checkable
 
 from orchestration_platform.domain.errors import (
     NODE_TIMEOUT,

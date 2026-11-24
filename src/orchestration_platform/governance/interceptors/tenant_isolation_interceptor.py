@@ -9,14 +9,13 @@
 #   4. 未启用治理时自动放行（降级模式）。
 # =============================================================================
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from orchestration_platform.configuration.settings import get_settings
 from orchestration_platform.governance.interceptors.base import (
     GovernanceDecision,
     GovernanceRequest,
     GovernanceResult,
-    ITenantIsolationInterceptor,
 )
 from orchestration_platform.governance.tenant.tenant_isolator import TenantIsolator
 

@@ -10,8 +10,6 @@
 # =============================================================================
 
 import asyncio
-import os
-import tempfile
 import unittest
 from typing import Any, Dict
 from unittest.mock import MagicMock
@@ -22,7 +20,6 @@ from orchestration_platform.domain.models.node_configurations import (
 )
 from orchestration_platform.engine.nodes.base import (
     NodeExecutionContext,
-    NodeExecutionResult,
 )
 from orchestration_platform.engine.node_executor_registry import (
     NodeExecutorRegistry,

@@ -2,10 +2,8 @@
 # 语义缓存单元测试（tests/unit/test_semantic_cache.py）
 # =============================================================================
 
-import pytest
 
 from orchestration_platform.context_engine.semantic_cache import (
-    CacheStats,
     HashEmbeddingProvider,
     SemanticCache,
 )
@@ -112,7 +110,7 @@ class TestSemanticCache:
         cache_loose.put("查询A", "响应A")
 
         strict_result = cache_strict.get("查询B")
-        loose_result = cache_loose.get("查询B")
+        cache_loose.get("查询B")
 
         assert strict_result is None
         # 阈值为 0 时任何非零相似度都命中

@@ -26,7 +26,6 @@ import httpx
 
 from orchestration_platform.domain.models.domain_event import DomainEvent
 from orchestration_platform.governance.event_bus.abstractions.event_bus import IEventBus
-from orchestration_platform.governance.event_bus.models import EventMessage
 from orchestration_platform.governance.event_export.models import (
     DeadLetterEntry,
     DeliveryRecord,
