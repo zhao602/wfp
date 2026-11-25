@@ -43,29 +43,46 @@ from orchestration_platform.engine.nodes.data_transform_ops.registry import (
 )
 
 
+class _RowScope:
+    """行级求值状态适配器（OP-08 filter 侧闭环，2026-11-24）。
+
+    传给 RestrictedExpressionEvaluator（求值器零改动，INV-14 保持）：
+    - ast.Name → state.node_outputs.get(name) → **行字段值**；
+    - output.field → node_outputs["field"] → 行字段（前端两种写法兼容）。
+    原实现直接传行 dict：dict 无 node_outputs 属性 → AttributeError 被吞 →
+    变量引用必失败 → filter 全行剔除（用户实测「过滤后数据为空」根因）。
+    """
+
+    __slots__ = ("node_outputs",)
+
+    def __init__(self, row: Dict[str, Any]) -> None:
+        self.node_outputs = row
+
+
 def _evaluate_expression(expression: str, row: Dict[str, Any]) -> Optional[Any]:
     """以单行 dict 为求值状态执行受限表达式求值（不修改求值器，INV-14）。
 
     返回 None 表示求值失败（调用方按既有口径处理并计数）。
-    注意：受限求值器变量引用走 state.node_outputs（OP-08 缺陷根因，现状保持）。
+    变量名经 _RowScope 映射到行字段（OP-08 闭环：不再是必失败的 node_outputs 语义）。
     """
     try:
         from orchestration_platform.engine.scheduler import RestrictedExpressionEvaluator
 
         evaluator = RestrictedExpressionEvaluator()
-        return evaluator.evaluate(expression, row)  # type: ignore[arg-type]
+        return evaluator.evaluate(expression, _RowScope(row))  # type: ignore[arg-type]
     except Exception:
         return None
 
 
 class MapHandler:
-    """映射操作处理器：按表达式逐行变换（既有行为等价，OP-08 现状保持）。
+    """映射操作处理器：按表达式逐行变换（OP-08 map 侧仍受白名单限制）。
 
-    行为口径（与既有 _execute_map 逐字对齐）：
+    行为口径：
       - 无 map_expression → 原样返回；
-      - 求值结果为 dict → 采用变换行；
+      - 求值结果为 dict → 采用变换行（变量引用现映射行字段；构造新 dict
+        仍受白名单限制——无 ast.Dict 节点，真实变换能力仍不闭环，OP-09 范畴）；
       - 求值结果非 dict（含求值器恒 bool 语义）→ 保留原行（计数告警）；
-      - 求值失败（含 OP-08 变量引用必失败）→ 保留原行（计数告警，不再静默）。
+      - 求值失败 → 保留原行（计数告警，不静默）。
     """
 
     operation = DataTransformOperation.MAP
@@ -101,13 +118,13 @@ class MapHandler:
 
 
 class FilterHandler:
-    """过滤操作处理器：按条件保留子集（既有行为等价，OP-08 现状保持）。
+    """过滤操作处理器：按条件保留子集（OP-08 filter 侧已闭环，2026-11-24）。
 
-    行为口径（与既有 _execute_filter 逐字对齐）：
+    行为口径：
       - 无 filter_condition → 原样返回；
-      - 求值为真 → 保留；
+      - 求值为真 → 保留（变量名/output.field 均映射行字段）；
       - 求值为假 → 剔除；
-      - 求值失败（含 OP-08 变量引用必失败）→ 剔除（计数告警，不再静默）。
+      - 求值失败（字段缺失/类型不可比较等）→ 剔除（计数告警，不静默）。
     """
 
     operation = DataTransformOperation.FILTER

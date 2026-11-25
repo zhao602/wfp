@@ -432,6 +432,9 @@ const LAYOUT_LIMITS = {
   configPanel: { min: 200, max: 480, default: 280 },
 } as const;
 
+/** 当前运行实例的会话级持久键（刷新后恢复输出展示订阅，标签页关闭即失效）。 */
+const ACTIVE_INSTANCE_KEY = "op_active_instance_id";
+
 /** 应用根组件：管理画布状态并协调各面板交互，可切换至管理后台。 */
 export default function App() {
   // 主题状态：应用级唯一持有者（spec 6.1.4）；initialThemeMode 为模块求值期解析值，
@@ -509,7 +512,28 @@ export default function App() {
   // past/future 双 useRef 栈（NFR-004），容量 HISTORY_LIMIT=50 溢出丢最旧（OP-007）；
   // push/undo/redo 纯栈操作、外置于 setCanvasState updater（INV-D09，StrictMode 幂等）
   const history = useCanvasHistory<WorkflowCanvasState>(HISTORY_LIMIT);
-  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
+  // 当前运行实例（输出展示订阅锚点）：会话级持久化（sessionStorage）——
+  // 页面刷新后仍能重新订阅 SSE 回放事件、恢复"执行状态/输出展示"区；
+  // 后端重启导致实例消失时由叠加层以连接异常提示如实呈现，不静默。
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(ACTIVE_INSTANCE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  // 运行实例会话级同步：写入/清除与 state 同帧，刷新后由初值读取恢复
+  useEffect(() => {
+    try {
+      if (activeInstanceId) {
+        sessionStorage.setItem(ACTIVE_INSTANCE_KEY, activeInstanceId);
+      } else {
+        sessionStorage.removeItem(ACTIVE_INSTANCE_KEY);
+      }
+    } catch {
+      // 隐私模式/存储不可用：仅失去刷新恢复能力，不影响当轮展示
+    }
+  }, [activeInstanceId]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [runError, setRunError] = useState<string | null>(null);
   // 导出失败提示（DC-05/FR-2.6 失败不静默）：成功路径恒 null → 提示 span 不渲染

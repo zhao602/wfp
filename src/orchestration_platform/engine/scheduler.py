@@ -16,7 +16,7 @@ import logging
 import traceback
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional, Protocol, Set, Tuple, runtime_checkable
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
 
 from orchestration_platform.domain.errors import (
     NODE_TIMEOUT,
@@ -459,6 +459,33 @@ class Scheduler:
                     "节点 %s 携带 suspend 元数据但非人工审核门，不消费（OP-03）",
                     node.node_id,
                 )
+
+            # 输出展示扇出（2026-11-24）：普通节点的多条出边若全部指向
+            # 「终端输出展示节点」（无出边的 OUTPUT_DISPLAY），依次全量执行
+            # ——纯内存透传零副作用，不改变确定性单游标对其他多出边的语义。
+            # 修复：两个输出节点并联时只有第一条出边被执行、其余永不执行
+            # （用户实测「两个输出节点只显示一个」）。
+            fanout_targets = self._display_fanout_targets(compiled, node)
+            if fanout_targets is not None:
+                last_display_id = node.node_id
+                for display_node_id in fanout_targets:
+                    display_node = compiled.get_node(display_node_id)
+                    if display_node is None:  # 编译期不可达，防御
+                        continue
+                    round_index += 1
+                    state_manager._state.round_index = round_index
+                    state_manager.advance_to(display_node_id)
+                    await self._run_node_lifecycle(
+                        compiled, state_manager, instance_id, trace_id,
+                        display_node, round_index, tenant_id=tenant_id,
+                    )
+                    last_display_id = display_node_id
+                # 全部展示执行完即终态：收尾检查点（completed=最后展示节点）
+                await self._write_checkpoint(
+                    state_manager, instance_id, last_display_id,
+                    round_index, None,
+                )
+                break
 
             # 确定下一节点（先于检查点写入：next_node_id 须为真实后继，
             # 恢复才能从正确位点续跑，arch_review_v2 3.3，CHG-09/DC-09）
@@ -1307,6 +1334,36 @@ class Scheduler:
     # ------------------------------------------------------------------
     # 下一节点确定（确定性调度）
     # ------------------------------------------------------------------
+    def _display_fanout_targets(
+        self, compiled: CompiledWorkflow, node
+    ) -> Optional[List[str]]:
+        """终端输出展示扇出目标（2026-11-24）。
+
+        条件（严格，全部满足才扇出；否则返回 None 走既有单游标语义）：
+        - 当前节点非控制流（分支/循环/并行分叉自有权衡）；
+        - 出边数 ≥ 2；
+        - 全部后继都是 OUTPUT_DISPLAY 节点；
+        - 且这些输出展示节点均无出边（终端）。
+
+        返回目标节点标识列表（保持声明顺序）。语义：展示节点为纯内存透传
+        终端（无副作用、无状态写入），依次执行全部不改变确定性调度对其他
+        多出边场景（仍取第一条）的既有行为。
+        """
+        if node.node_type == NodeType.CONTROL_FLOW:
+            return None
+        successor_edges = compiled.successors(node.node_id)
+        if len(successor_edges) < 2:
+            return None
+        targets: List[str] = []
+        for edge in successor_edges:
+            target = compiled.get_node(edge.target_node_id)
+            if target is None or target.node_type != NodeType.OUTPUT_DISPLAY:
+                return None
+            if compiled.successors(target.node_id):
+                return None  # 非终端展示节点，不纳入扇出
+            targets.append(target.node_id)
+        return targets
+
     def _determine_next_node(
         self,
         compiled: CompiledWorkflow,

@@ -140,6 +140,15 @@ const overlayCss = `
 .wfp-theme--dark .wfp-overlay-output__empty{color:${darkTokens.text.hint};}
 .wfp-theme--dark .wfp-overlay-output__download{border-color:${darkTokens.status.running};background:${darkTokens.surface.bg};color:${darkTokens.status.running};}
 .wfp-theme--dark .wfp-overlay-output__download:hover{background:${darkTokens.surface.bgHover};}
+/* —— 浮层头部与收起按钮（独立类族 wfp-overlay-head / wfp-overlay-toggle）—— */
+.wfp-overlay-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600;}
+.wfp-overlay-head--collapsed{justify-content:center;gap:0;}
+.wfp-overlay-toggle{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:1px solid #d0d0d0;border-radius:3px;background:#ffffff;color:#616161;cursor:pointer;line-height:1;flex:0 0 auto;}
+.wfp-overlay-toggle:hover{background:#f0f0f0;color:#212121;}
+.wfp-overlay-toggle:focus-visible{outline:2px solid #1976d2;outline-offset:1px;}
+.wfp-theme--dark .wfp-overlay-toggle{border-color:${darkTokens.surface.divider};background:${darkTokens.surface.bg};color:${darkTokens.text.secondary};}
+.wfp-theme--dark .wfp-overlay-toggle:hover{background:${darkTokens.surface.bgHover};color:${darkTokens.text.primary};}
+.wfp-theme--dark .wfp-overlay-toggle:focus-visible{outline-color:${darkTokens.status.running};}
 `;
 
 /** 节点执行状态叠加层 */
@@ -158,6 +167,10 @@ export default function NodeExecutionStatusOverlay({
   const [connectionLost, setConnectionLost] = useState(false);
   /** 输出展示节点产出：nodeId → { title, content }（DC-9，独立于失败反馈区 INV-14） */
   const [nodeOutputs, setNodeOutputs] = useState<Record<string, { title: string; content: unknown }>>({});
+  /** 本轮是否已到终态（实例完成或事件流收尾）：用于"完成但无输出"的显式提示 */
+  const [finished, setFinished] = useState(false);
+  /** 浮层收起态（仅保留图标按钮，避免遮挡画布；与运行周期无关，不随 run 复位） */
+  const [collapsed, setCollapsed] = useState(false);
 
   /** 最新画布状态引用：供事件回调解析节点展示名，避免因画布编辑导致订阅重建 */
   const canvasStateRef = useRef(canvasState);
@@ -231,13 +244,19 @@ export default function NodeExecutionStatusOverlay({
       return;
     }
 
-    // —— 无 node_id 分支：仅处理实例级失败，其余安全忽略（DC-3）——
+    // —— 无 node_id 分支：实例级终态处理，其余安全忽略（DC-3）——
+    if (event.event_type === "INSTANCE_COMPLETED") {
+      setFinished(true);
+      return;
+    }
     if (event.event_type === "INSTANCE_FAILED") {
       hasFailureRef.current = true;
+      setFinished(true);
       setInstanceFailure((prev) => prev ?? formatInstanceFailure(extractError(event.payload)));
       return;
     }
     if (event.event_type === "STREAM_END") {
+      setFinished(true);
       // 事件流正常收尾：仅当尚无任何失败原因时触发终态兜底查询（DC-6）
       if (!hasFailureRef.current) {
         triggerFallbackQuery();
@@ -253,6 +272,7 @@ export default function NodeExecutionStatusOverlay({
     setInstanceFailure(null);
     setConnectionLost(false);
     setNodeOutputs({});
+    setFinished(false);
     hasFailureRef.current = false;
     fallbackQueriedRef.current = false;
 
@@ -287,14 +307,38 @@ export default function NodeExecutionStatusOverlay({
         background: isDark ? "rgba(30,30,30,0.95)" : "rgba(255, 255, 255, 0.95)",
         border: `1px solid ${isDark ? darkTokens.surface.divider : "#e0e0e0"}`,
         borderRadius: "4px",
-        padding: "8px 12px",
+        padding: collapsed ? "5px" : "8px 12px",
         fontSize: "12px",
         color: isDark ? darkTokens.text.primary : undefined,
         zIndex: 10,
       }}
     >
       <style>{overlayCss}</style>
-      <div style={{ fontWeight: 600, marginBottom: "4px" }}>执行状态</div>
+      <div className={`wfp-overlay-head${collapsed ? " wfp-overlay-head--collapsed" : ""}`}>
+        {!collapsed && <span>执行状态</span>}
+        <button
+          type="button"
+          className="wfp-overlay-toggle"
+          onClick={() => setCollapsed((prev) => !prev)}
+          aria-label={collapsed ? "展开执行状态与输出展示" : "收起执行状态与输出展示"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "展开执行状态与输出展示" : "收起执行状态与输出展示"}
+        >
+          {/* 图标语义：展开态显示「向上折叠」，收起态显示「向下展开」 */}
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+            <path
+              d={collapsed ? "M1 3.5L5 7L9 3.5" : "M1 6.5L5 3L9 6.5"}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+      {!collapsed && (
+        <>
       {(Object.keys(STATUS_LABELS) as NodeExecutionStatus[]).map((status) => (
         <div key={status} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <span
@@ -349,6 +393,14 @@ export default function NodeExecutionStatusOverlay({
           })}
         </div>
       )}
+      {finished && Object.keys(nodeOutputs).length === 0 && !hasFeedback && (
+        <div className="wfp-overlay-output">
+          <div className="wfp-overlay-output__title">输出展示</div>
+          <div className="wfp-overlay-output__empty">
+            本轮执行已完成，但没有输出展示内容：画布中未放置「输出展示」节点，或其输入引用为空。
+          </div>
+        </div>
+      )}
       {hasFeedback && (
         <div className="wfp-overlay-feedback">
           {nodeFailures.length > 0 && (
@@ -367,6 +419,8 @@ export default function NodeExecutionStatusOverlay({
             <div className="wfp-overlay-feedback--connection">执行状态连接已断开</div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

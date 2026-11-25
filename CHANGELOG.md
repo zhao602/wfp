@@ -163,6 +163,28 @@
   −66% / sse −17%（105.6 单轮尖峰复测 71.5 界定）；ruff 本批 20 文件
   零违规；AST 门禁 PASS；**版本维持 0.3.0**。
 
+### 输出展示扇出与行作用域修复（display_fanout 并行批）
+
+- **输出展示扇出全执行**：scheduler `_display_fanout_targets` + 主循环
+  集成——OUTPUT_DISPLAY 节点多出边时全部终点依序执行（此前仅单条）；
+  round_index / checkpoint 写路径与主循环一致（next=None 终态语义）。
+- **多出边校验告警**：`_validate_multi_outedges`——OUTPUT_DISPLAY 与
+  条件/并行出边混布时 WARNING（非阻断），前置提示拓扑歧义。
+- **过滤行作用域（OP-08）**：`_RowScope`——filter/map 算子表达式内
+  变量引用解析为当前行字段（此前恒失败），契约用例
+  `test_filter_with_variable_reference_filters_rows` 锁定。
+- **悬浮层运行态收口**：overlay 折叠态/完成态 +「完成但无输出」提示；
+  App `sessionStorage` 活动实例键——刷新后恢复运行实例面板。
+- **提示文案**：nodeConfigHints 多出边提示补充。
+- **测试**：新增 `test_display_fanout.py`（5）+
+  `test_data_transform_row_scope.py`（8）；chain 契约用例改名收口；
+  overlay 测试 +2（折叠/完成态）；本批 py 新文件 ruff 零违规。
+- **门禁基线（本批实测，落定树）**：全量 pytest **3861 collected / 215
+  文件 exit 0**（collect-only 与 junit 双核一致；与 B12 段记录 3906 差
+  −45：其「并行批 +40」为在途估算，本批落定实测 +13，M6 +61 / B12 +49
+  组件级复验精确一致，残余 −18 无原始捕获可审计）；vitest 1012+13；
+  typecheck 0 error；e2e 6/6（37.3s）；AST 门禁 PASS；**版本维持 0.3.0**。
+
 ---
 
 ## [0.3.0] - 2026-11-23

@@ -388,12 +388,75 @@ class NodeConfigurationValidator:
         """校验全部节点的配置，返回问题清单（空列表表示通过）。
 
         顺序：逐节点必备项校验 → 全定义统一输入引用静态校验 pass
-        （unified_node_input T4.2，持有全定义视野，签名不变）。
+        （unified_node_input T4.2，持有全定义视野，签名不变）→
+        多出边可辨识提示 pass（2026-11-24）。
         """
         issues: List[ValidationIssue] = []
         for node in definition.nodes:
             issues.extend(self._validate_node(node))
         issues.extend(self._validate_input_references(definition))
+        issues.extend(self._validate_multi_outedges(definition))
+        return issues
+
+    def _validate_multi_outedges(
+        self, definition: WorkflowDefinition
+    ) -> List[ValidationIssue]:
+        """多出边可辨识提示（WARNING，不阻断；2026-11-24）。
+
+        仅针对「出边中含输出展示节点」的混合场景提示——用户在此场景易误以为
+        所有输出节点都会执行（实测「两个输出节点只显示一个」排查成本高）。
+        纯数据流多出边（无输出展示节点参与）保持引擎既有静默语义不变。
+
+        引擎为确定性单游标：普通节点的多条出边只执行第一条。例外（不提示）：
+        - 控制流节点（分支/循环/并行分叉自有权衡）；
+        - 出边全部指向「终端输出展示节点」→ 展示扇出全量执行（引擎支持）。
+        """
+        issues: List[ValidationIssue] = []
+        nodes_by_id = {node.node_id: node for node in definition.nodes}
+        for node in definition.nodes:
+            if node.node_type == NodeType.CONTROL_FLOW:
+                continue
+            out_edges = [
+                edge
+                for edge in definition.edges
+                if edge.source_node_id == node.node_id
+            ]
+            if len(out_edges) < 2:
+                continue
+            targets = [
+                nodes_by_id.get(edge.target_node_id) for edge in out_edges
+            ]
+            if not any(
+                target is not None
+                and target.node_type == NodeType.OUTPUT_DISPLAY
+                for target in targets
+            ):
+                continue  # 无输出展示节点参与：既有静默语义不变
+            all_terminal_display = all(
+                target is not None
+                and target.node_type == NodeType.OUTPUT_DISPLAY
+                and not any(
+                    e.source_node_id == target.node_id
+                    for e in definition.edges
+                )
+                for target in targets
+            )
+            if all_terminal_display:
+                continue  # 展示扇出例外：引擎全量执行全部输出节点
+            skipped = "、".join(edge.target_node_id for edge in out_edges[1:])
+            issues.append(
+                ValidationIssue(
+                    code=WF_VALIDATION_FAILED,
+                    severity=Severity.WARNING,
+                    message=(
+                        f"节点 {node.node_id} 有 {len(out_edges)} 条出边，"
+                        f"确定性单游标只执行第一条（{out_edges[0].target_node_id}），"
+                        f"其余不会执行（{skipped}）；如需多个输出请改为串联输出节点、"
+                        f"使用条件分支或并行区域"
+                    ),
+                    node_id=node.node_id,
+                )
+            )
         return issues
 
     # ------------------------------------------------------------------

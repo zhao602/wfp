@@ -305,16 +305,19 @@ class TestExistingOperationsRegression:
         assert result.success is True
         assert result.output_value == []
 
-    async def test_filter_with_variable_reference_drops_rows_with_warning(self):
-        """OP-08 现状：变量引用必失败 → 行被剔除；差异仅为失败不再静默（计数告警）。"""
+    async def test_filter_with_variable_reference_filters_rows(self):
+        """OP-08 filter 侧已闭环（2026-11-24）：变量引用映射行字段 → 真实过滤。
+
+        原口径「变量引用必失败 → 全剔除」废止（用户实测过滤后数据为空的根因）；
+        详见 tests/unit/test_data_transform_row_scope.py 全覆盖。
+        """
         result = await _run(
             _legacy_config(params={"filter_condition": "value >= 20"})
         )
 
         assert result.success is True
-        assert result.output_value == []
-        warnings = result.metadata.get("warnings")
-        assert isinstance(warnings, list) and warnings
+        assert [r["id"] for r in result.output_value] == [2, 3, 4]
+        assert result.metadata.get("warnings") is None
 
     async def test_filter_without_condition_passes_through(self):
         result = await _run(_legacy_config(params={}))

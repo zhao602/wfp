@@ -300,7 +300,7 @@ export const NODE_HINTS: NodeHintMap = {
         helper: "映射表达式：逐行求值，失败置空 + 计数，不中断链；空值以预制表达式补全。",
       },
       filter_condition: {
-        helper: "过滤条件：逐行求值，失败保留原行 + 计数，不中断链；空值以预制表达式补全。",
+        helper: "过滤条件（如 value >= 20 或 category == 'a'，字段名直引用本行字段）：真保留、假剔除；字段缺失/类型不可比较的行按不保留处理并计数，不中断链。",
       },
       group_by: {
         helper: "聚合分组字段列表（逗号分隔）。",

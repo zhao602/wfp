@@ -13,7 +13,7 @@
 // =============================================================================
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import type { ExecutionEvent } from "../../api/apiTypes";
 import type { WorkflowCanvasState } from "../../canvas/canvasTypes";
 import NodeExecutionStatusOverlay from "../NodeExecutionStatusOverlay";
@@ -98,5 +98,36 @@ describe("NodeExecutionStatusOverlay — 执行失败反馈区", () => {
       captured.config?.onEvent(makeEvent({ event_type: "NODE_STARTED", node_id: "n1" }));
     });
     expect(screen.queryByText("执行状态连接已断开")).toBeNull();
+  });
+});
+
+describe("NodeExecutionStatusOverlay — 收起/展开按钮", () => {
+  it("默认展开：标题与计数可见，按钮 aria-expanded=true", () => {
+    render(<NodeExecutionStatusOverlay instanceId="i1" canvasState={emptyCanvas} />);
+    expect(screen.getByText("执行状态")).toBeTruthy();
+    const toggle = screen.getByRole("button", { name: "收起执行状态与输出展示" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("点击收起后仅保留图标按钮（标题与计数隐藏），再点恢复", () => {
+    const { container } = render(
+      <NodeExecutionStatusOverlay instanceId="i1" canvasState={emptyCanvas} />,
+    );
+    act(() => {
+      captured.config?.onEvent(makeEvent({ event_type: "NODE_COMPLETED", node_id: "n1" }));
+    });
+    expect(container.querySelector(".wfp-overlay-head")?.textContent).toContain("执行状态");
+
+    fireEvent.click(screen.getByRole("button", { name: "收起执行状态与输出展示" }));
+    // 收起态：标题消失，按钮变为展开语义，且容器内容只剩按钮
+    expect(screen.queryByText("执行状态")).toBeNull();
+    const expandButton = screen.getByRole("button", { name: "展开执行状态与输出展示" });
+    expect(expandButton.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector(".wfp-overlay-head--collapsed")).toBeTruthy();
+    expect(container.querySelector(".wfp-overlay-output")).toBeNull();
+
+    fireEvent.click(expandButton);
+    expect(screen.getByText("执行状态")).toBeTruthy();
+    expect(container.querySelector(".wfp-overlay-head--collapsed")).toBeNull();
   });
 });
