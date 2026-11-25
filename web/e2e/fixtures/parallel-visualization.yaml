@@ -1,0 +1,61 @@
+# 并行分支可视化 e2e 夹具（web/e2e/fixtures/parallel-visualization.yaml）
+#
+# 用途：07-parallel-visualization.spec.ts 经「导入 YAML」按钮（原生文件选择）导入画布，
+#   验证运行后叠加层并行分支泳道（B13 U2/U3 e2e 覆盖）。
+# 设计约束：
+#   1. 全链路确定性——trigger 空模板 + output_display 双分支（缺引用容忍，不依赖
+#      LLM / 外部数据源 / 代码节点开关，e2e 后端环境零依赖）；
+#   2. join 声明 parallel_branches: [display_a, display_b] + wait_all——
+#      编译期激活并行区域（fanout 规则：唯一分叉源 trigger，两条线性分支终于 join）；
+#   3. trigger 双出边仅产生 WARNING（确定性单游标提示，对已激活并行区域为历史噪声），
+#      不产生 ERROR——valid=True，运行前置校验放行。
+spec_version: "1.0"
+definition_id: parallel_visualization_e2e
+name: 并行可视化泳道
+definition_version: 1
+inputs: []
+outputs: []
+nodes:
+  - node_id: trigger_start
+    name: 手动触发
+    node_type: trigger
+    configuration:
+      trigger_type: manual
+      input_template: {}
+  - node_id: display_a
+    name: 分支A展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - trigger_start
+      display_title: 甲结果
+  - node_id: display_b
+    name: 分支B展示
+    node_type: output_display
+    configuration:
+      input_reference:
+        - trigger_start
+      display_title: 乙结果
+  - node_id: parallel_join
+    name: 并行汇聚
+    node_type: control_flow
+    configuration:
+      control_flow_kind: parallel_join
+      parallel_branches:
+        - display_a
+        - display_b
+      wait_policy: wait_all
+      parallel_failure_strategy: fast_fail
+edges:
+  - edge_id: e1
+    source_node_id: trigger_start
+    target_node_id: display_a
+  - edge_id: e2
+    source_node_id: trigger_start
+    target_node_id: display_b
+  - edge_id: e3
+    source_node_id: display_a
+    target_node_id: parallel_join
+  - edge_id: e4
+    source_node_id: display_b
+    target_node_id: parallel_join

@@ -594,15 +594,35 @@ class Scheduler:
         )
 
         if not result.success:
-            # 节点失败事件回调（DC-4，spec 5.3.1.3）
+            # 节点失败事件回调（DC-4，spec 5.3.1.3；
+            # B13 U3/D6：带输入快照的新形态回调优先，旧形态兜底走原路径；
+            # 快照复用上方 input_snapshot（run_log_recorder 缺席时现场补采，
+            # 仅失败路径开销）；:1304 第二处失败回调（取消/回收）不动）
             if self._event_callback is not None:
                 try:
-                    await self._event_callback.on_node_failed(
-                        instance_id,
-                        node.node_id,
-                        trace_id,
-                        error=result.error_message or "",
+                    failed_with_input = getattr(
+                        self._event_callback, "on_node_failed_with_input", None
                     )
+                    if failed_with_input is not None:
+                        snapshot = (
+                            input_snapshot
+                            if input_snapshot is not None
+                            else dict(state_manager.state.node_outputs)
+                        )
+                        await failed_with_input(
+                            instance_id,
+                            node.node_id,
+                            trace_id,
+                            error=result.error_message or "",
+                            input_snapshot=snapshot,
+                        )
+                    else:
+                        await self._event_callback.on_node_failed(
+                            instance_id,
+                            node.node_id,
+                            trace_id,
+                            error=result.error_message or "",
+                        )
                 except Exception:
                     logging.warning(
                         "on_node_failed 回调失败: node_id=%s", node.node_id,
@@ -1166,7 +1186,24 @@ class Scheduler:
         （enums.py:149-150 本次接线），沿调度器 node.* 领域事件前缀
         约定发布（DomainEvent 前缀白名单 instance./node./governance.）；
         载荷含 join_node_id / branch_entry_id / 状态。
+        B13 U2：发布前先桥接实例事件流（event_callback 的可选方法
+        on_parallel_branch，getattr 守卫兼容旧回调形态），桥接置于
+        治理总线早退之前——无领域事件发布器的形态下泳道事件仍可达；
+        桥接失败自吞不阻断领域事件发布。
         """
+        callback = getattr(self._event_callback, "on_parallel_branch", None)
+        if callback is not None:
+            try:
+                await callback(
+                    instance_id, region.join_node_id, branch_entry_id,
+                    status, trace_id,
+                )
+            except Exception:
+                logging.warning(
+                    "并行分支实例事件桥接失败: join=%s branch=%s",
+                    region.join_node_id, branch_entry_id,
+                    exc_info=True,
+                )
         if self._domain_event_publisher is None:
             return
         try:

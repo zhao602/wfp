@@ -504,6 +504,7 @@ class NodeConfigurationValidator:
                         f"如需显式钉住请在节点配置填写模型名"
                     ),
                     node_id=node.node_id,
+                    field="model_identifier",
                 )
             ]
         return []
@@ -578,6 +579,7 @@ class NodeConfigurationValidator:
                         severity=Severity.ERROR,
                         message=f"触发器节点 {node.node_id} 类型为 scheduled 但未配置 schedule 表达式",
                         node_id=node.node_id,
+                        field="schedule",
                     )
                 )
         if config.trigger_type == TriggerType.DATA_EVENT:
@@ -588,6 +590,7 @@ class NodeConfigurationValidator:
                         severity=Severity.ERROR,
                         message=f"触发器节点 {node.node_id} 类型为 data_event 但未配置 event_source",
                         node_id=node.node_id,
+                        field="event_source",
                     )
                 )
 
@@ -603,6 +606,7 @@ class NodeConfigurationValidator:
                         severity=Severity.ERROR,
                         message=f"触发器节点 {node.node_id} 的 input_template 存在空参数名",
                         node_id=node.node_id,
+                        field="input_template",
                     )
                 )
             if not context_field_ref or not context_field_ref.strip():
@@ -612,6 +616,7 @@ class NodeConfigurationValidator:
                         severity=Severity.ERROR,
                         message=f"触发器节点 {node.node_id} 的 input_template 参数 {param_name!r} 的引用字段为空",
                         node_id=node.node_id,
+                        field="input_template",
                     )
                 )
 
@@ -631,40 +636,40 @@ class NodeConfigurationValidator:
 
             if _preset == FrequencyPresetEnum.HOURLY:
                 if pc.minute is None or not (0 <= pc.minute <= 59):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 hourly 的 minute 须为 0–59", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 hourly 的 minute 须为 0–59", node_id=node.node_id, field="minute"))
             elif _preset == FrequencyPresetEnum.DAILY:
                 if pc.hour is None or not (0 <= pc.hour <= 23):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 daily 的 hour 须为 0–23", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 daily 的 hour 须为 0–23", node_id=node.node_id, field="hour"))
                 if pc.minute is None or not (0 <= pc.minute <= 59):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 daily 的 minute 须为 0–59", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 daily 的 minute 须为 0–59", node_id=node.node_id, field="minute"))
             elif _preset == FrequencyPresetEnum.WEEKLY:
                 if pc.day_of_week is None or not (1 <= pc.day_of_week <= 7):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 day_of_week 须为 1–7", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 day_of_week 须为 1–7", node_id=node.node_id, field="day_of_week"))
                 if pc.hour is None or not (0 <= pc.hour <= 23):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 hour 须为 0–23", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 hour 须为 0–23", node_id=node.node_id, field="hour"))
                 if pc.minute is None or not (0 <= pc.minute <= 59):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 minute 须为 0–59", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 weekly 的 minute 须为 0–59", node_id=node.node_id, field="minute"))
             elif _preset == FrequencyPresetEnum.MONTHLY:
                 if pc.day_of_month is None or not (1 <= pc.day_of_month <= 31):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 day_of_month 须为 1–31", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 day_of_month 须为 1–31", node_id=node.node_id, field="day_of_month"))
                 if pc.hour is None or not (0 <= pc.hour <= 23):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 hour 须为 0–23", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 hour 须为 0–23", node_id=node.node_id, field="hour"))
                 if pc.minute is None or not (0 <= pc.minute <= 59):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 minute 须为 0–59", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 monthly 的 minute 须为 0–59", node_id=node.node_id, field="minute"))
             elif _preset == FrequencyPresetEnum.YEARLY:
                 if pc.month is None or not (1 <= pc.month <= 12):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 month 须为 1–12", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 month 须为 1–12", node_id=node.node_id, field="month"))
                 elif pc.day_of_month is None or not (1 <= pc.day_of_month <= _days_in_month[pc.month]):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 day_of_month 超出 {pc.month} 月天数", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 day_of_month 超出 {pc.month} 月天数", node_id=node.node_id, field="day_of_month"))
                 if pc.hour is None or not (0 <= pc.hour <= 23):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 hour 须为 0–23", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 hour 须为 0–23", node_id=node.node_id, field="hour"))
                 if pc.minute is None or not (0 <= pc.minute <= 59):
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 minute 须为 0–59", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 yearly 的 minute 须为 0–59", node_id=node.node_id, field="minute"))
             elif _preset in _interval_limits:
                 if pc.value is None or not isinstance(pc.value, int) or pc.value < 1:
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 {_preset.value} 的 value 须为正整数", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 {_preset.value} 的 value 须为正整数", node_id=node.node_id, field="value"))
                 elif pc.value > _interval_limits[_preset]:
-                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 {_preset.value} 的 value 不能超过 {_interval_limits[_preset]}", node_id=node.node_id))
+                    issues.append(ValidationIssue(code=WF_VALIDATION_FAILED, severity=Severity.ERROR, message=f"触发器节点 {node.node_id} 预设 {_preset.value} 的 value 不能超过 {_interval_limits[_preset]}", node_id=node.node_id, field="value"))
 
         return issues
 

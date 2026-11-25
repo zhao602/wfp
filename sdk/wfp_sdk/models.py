@@ -43,6 +43,7 @@ class ValidationIssue:
     node_id: Optional[str] = None
     edge_id: Optional[str] = None
     location: Optional[SourceLocation] = None
+    field: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ValidationIssue":
@@ -53,6 +54,7 @@ class ValidationIssue:
             node_id=data.get("node_id"),
             edge_id=data.get("edge_id"),
             location=SourceLocation.from_dict(data.get("location")),
+            field=data.get("field"),
         )
 
 

@@ -13,12 +13,18 @@
 //   NODE_COMPLETED 载荷的 display_content 判定键不变（DC-09）。
 // =============================================================================
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useThemeMode, darkTokens } from "../theme/themeMode";
 import { ExecutionEventStreamClient } from "./ExecutionEventStreamClient";
 import { orchestrationApiClient } from "../api/orchestrationApiClient";
 import {
+  deriveParallelRegions,
+  reduceBranchStatuses,
+  type BranchExecutionStatus,
+} from "./parallelRegionStatus";
+import {
   extractError,
+  extractInputSnapshot,
   formatNodeFailure,
   formatInstanceFailure,
   mergeNodeFailure,
@@ -50,6 +56,15 @@ const STATUS_LABELS: Record<NodeExecutionStatus, string> = {
   succeeded: "成功",
   failed: "失败",
   skipped: "已跳过",
+};
+
+/** 分支状态中文标签（并行分支泳道行右侧，B13 U2） */
+const BRANCH_STATUS_LABELS: Record<BranchExecutionStatus, string> = {
+  pending: "待执行",
+  running: "执行中",
+  succeeded: "成功",
+  failed: "失败",
+  cancelled: "已取消",
 };
 
 /**
@@ -126,6 +141,14 @@ const overlayCss = `
 .wfp-theme--dark .wfp-overlay-feedback__item{color:${darkTokens.danger};}
 .wfp-theme--dark .wfp-overlay-feedback--instance{color:${darkTokens.danger};}
 .wfp-theme--dark .wfp-overlay-feedback--connection{color:${darkTokens.text.secondary};}
+/* —— 失败输入快照（B13 U3，类族 wfp-overlay-feedback__snapshot）—— */
+.wfp-overlay-feedback__snapshot{margin-top:2px;}
+.wfp-overlay-feedback__snapshot-toggle{display:inline-block;margin:2px 0;padding:1px 8px;font-size:11px;border:1px solid #d0d0d0;border-radius:3px;background:#ffffff;color:#616161;cursor:pointer;}
+.wfp-overlay-feedback__snapshot-toggle:hover{background:#f0f0f0;color:#212121;}
+.wfp-overlay-feedback__snapshot-json{margin:2px 0 0;padding:4px 6px;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;background:#f5f5f5;border-radius:3px;color:#555;}
+.wfp-theme--dark .wfp-overlay-feedback__snapshot-toggle{border-color:${darkTokens.surface.divider};background:${darkTokens.surface.bg};color:${darkTokens.text.secondary};}
+.wfp-theme--dark .wfp-overlay-feedback__snapshot-toggle:hover{background:${darkTokens.surface.bgHover};color:${darkTokens.text.primary};}
+.wfp-theme--dark .wfp-overlay-feedback__snapshot-json{background:${darkTokens.surface.bgHover};color:${darkTokens.text.secondary};}
 /* —— 输出展示区：独立类族 wfp-overlay-output，不复用 wfp-overlay-feedback（INV-14）—— */
 .wfp-overlay-output{margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0;max-width:320px;}
 .wfp-overlay-output__title{font-weight:600;font-size:12px;margin-bottom:2px;color:#333;}
@@ -140,6 +163,23 @@ const overlayCss = `
 .wfp-theme--dark .wfp-overlay-output__empty{color:${darkTokens.text.hint};}
 .wfp-theme--dark .wfp-overlay-output__download{border-color:${darkTokens.status.running};background:${darkTokens.surface.bg};color:${darkTokens.status.running};}
 .wfp-theme--dark .wfp-overlay-output__download:hover{background:${darkTokens.surface.bgHover};}
+/* —— 并行分支泳道（B13 U2，类族 wfp-overlay-parallel）—— */
+.wfp-overlay-parallel{margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0;max-width:320px;}
+.wfp-overlay-parallel__title{font-weight:600;font-size:12px;margin-bottom:2px;color:#333;}
+.wfp-overlay-parallel__row{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.6;}
+.wfp-overlay-parallel__dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:#9e9e9e;}
+.wfp-overlay-parallel__dot--pending{background:#9e9e9e;}
+.wfp-overlay-parallel__dot--running{background:#1976d2;}
+.wfp-overlay-parallel__dot--succeeded{background:#388e3c;}
+.wfp-overlay-parallel__dot--failed{background:#d32f2f;}
+.wfp-overlay-parallel__dot--cancelled{background:#757575;}
+.wfp-overlay-parallel__branch{word-break:break-all;}
+.wfp-overlay-parallel__status{margin-left:auto;color:#616161;}
+.wfp-overlay-parallel__reason{font-size:11px;color:#1976d2;margin-top:2px;word-break:break-word;}
+.wfp-theme--dark .wfp-overlay-parallel{border-top-color:${darkTokens.surface.divider};}
+.wfp-theme--dark .wfp-overlay-parallel__title{color:${darkTokens.text.primary};}
+.wfp-theme--dark .wfp-overlay-parallel__status{color:${darkTokens.text.secondary};}
+.wfp-theme--dark .wfp-overlay-parallel__reason{color:${darkTokens.status.running};}
 /* —— 浮层头部与收起按钮（独立类族 wfp-overlay-head / wfp-overlay-toggle）—— */
 .wfp-overlay-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600;}
 .wfp-overlay-head--collapsed{justify-content:center;gap:0;}
@@ -171,6 +211,10 @@ export default function NodeExecutionStatusOverlay({
   const [finished, setFinished] = useState(false);
   /** 浮层收起态（仅保留图标按钮，避免遮挡画布；与运行周期无关，不随 run 复位） */
   const [collapsed, setCollapsed] = useState(false);
+  /** 并行分支事件累积（B13 U2：PARALLEL_BRANCH_STARTED/COMPLETED 原始事件，供泳道归约） */
+  const [branchEvents, setBranchEvents] = useState<ExecutionEvent[]>([]);
+  /** 失败输入快照展开态：nodeId → 是否展开（B13 U3，随新一轮运行复位） */
+  const [expandedSnapshots, setExpandedSnapshots] = useState<Record<string, boolean>>({});
 
   /** 最新画布状态引用：供事件回调解析节点展示名，避免因画布编辑导致订阅重建 */
   const canvasStateRef = useRef(canvasState);
@@ -211,6 +255,16 @@ export default function NodeExecutionStatusOverlay({
     // 收到任一事件即视为连接恢复：清除连接异常提示（AC-17）
     setConnectionLost(false);
 
+    // —— 并行分支事件：先于节点状态映射分流（其 node_id 指向 join 节点，
+    //    不得映射为节点状态；join 状态由其自身节点级事件表达）（B13 U2/D3）——
+    if (
+      event.event_type === "PARALLEL_BRANCH_STARTED" ||
+      event.event_type === "PARALLEL_BRANCH_COMPLETED"
+    ) {
+      setBranchEvents((prev) => [...prev, event]);
+      return;
+    }
+
     if (event.node_id) {
       // —— 节点分支：状态映射与改动前逐字符等价（INV-4/DC-9）——
       const status = eventToStatus(event.event_type);
@@ -237,6 +291,7 @@ export default function NodeExecutionStatusOverlay({
           nodeId,
           displayName,
           reason: formatNodeFailure(nodeId, rawError, displayName),
+          inputSnapshot: extractInputSnapshot(event.payload),
         };
         hasFailureRef.current = true;
         setNodeFailures((prev) => mergeNodeFailure(prev, entry));
@@ -273,6 +328,8 @@ export default function NodeExecutionStatusOverlay({
     setConnectionLost(false);
     setNodeOutputs({});
     setFinished(false);
+    setBranchEvents([]);
+    setExpandedSnapshots({});
     hasFailureRef.current = false;
     fallbackQueriedRef.current = false;
 
@@ -292,6 +349,12 @@ export default function NodeExecutionStatusOverlay({
       return acc;
     },
     {} as Record<string, number>,
+  );
+
+  /** 并行区域泳道视图（B13 U2：画布 join 配置推导 + 分支事件归约） */
+  const parallelRegionViews = useMemo(
+    () => reduceBranchStatuses(deriveParallelRegions(canvasState), branchEvents),
+    [canvasState, branchEvents],
   );
 
   /** 是否存在任一失败信息或连接异常（决定反馈区是否渲染，Q-2/AC-10） */
@@ -353,6 +416,29 @@ export default function NodeExecutionStatusOverlay({
           {STATUS_LABELS[status]}: {statusCounts[status] ?? 0}
         </div>
       ))}
+      {parallelRegionViews
+        .filter((view) => view.hasEvents)
+        .map((view) => (
+          <div key={view.region.joinNodeId} className="wfp-overlay-parallel">
+            <div className="wfp-overlay-parallel__title">
+              {view.region.joinName} · 并行分支
+            </div>
+            {view.branches.map((branch) => (
+              <div key={branch.branchId} className="wfp-overlay-parallel__row">
+                <span
+                  className={`wfp-overlay-parallel__dot wfp-overlay-parallel__dot--${branch.status}`}
+                />
+                <span className="wfp-overlay-parallel__branch">
+                  {branch.branchId}
+                </span>
+                <span className="wfp-overlay-parallel__status">
+                  {BRANCH_STATUS_LABELS[branch.status]}
+                </span>
+              </div>
+            ))}
+            <div className="wfp-overlay-parallel__reason">{view.waitReason}</div>
+          </div>
+        ))}
       {Object.keys(nodeOutputs).length > 0 && (
         <div className="wfp-overlay-output">
           <div className="wfp-overlay-output__title">输出展示</div>
@@ -405,11 +491,37 @@ export default function NodeExecutionStatusOverlay({
         <div className="wfp-overlay-feedback">
           {nodeFailures.length > 0 && (
             <ul className="wfp-overlay-feedback__list">
-              {nodeFailures.map((entry) => (
-                <li key={entry.nodeId} className="wfp-overlay-feedback__item">
-                  {entry.reason}
-                </li>
-              ))}
+              {nodeFailures.map((entry) => {
+                const snapshotExpanded = expandedSnapshots[entry.nodeId] ?? false;
+                return (
+                  <li key={entry.nodeId} className="wfp-overlay-feedback__item">
+                    {entry.reason}
+                    {/* 失败输入快照（B13 U3）：payload.input 存在时呈现可折叠 JSON 块 */}
+                    {entry.inputSnapshot !== undefined && (
+                      <div className="wfp-overlay-feedback__snapshot">
+                        <button
+                          type="button"
+                          className="wfp-overlay-feedback__snapshot-toggle"
+                          onClick={() =>
+                            setExpandedSnapshots((prev) => ({
+                              ...prev,
+                              [entry.nodeId]: !snapshotExpanded,
+                            }))
+                          }
+                          aria-expanded={snapshotExpanded}
+                        >
+                          {snapshotExpanded ? "收起失败输入快照" : "展开失败输入快照"}
+                        </button>
+                        {snapshotExpanded && (
+                          <pre className="wfp-overlay-feedback__snapshot-json">
+                            {JSON.stringify(entry.inputSnapshot, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
           {instanceFailure !== null && (

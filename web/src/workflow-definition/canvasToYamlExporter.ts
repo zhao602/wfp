@@ -221,6 +221,10 @@ function sanitizeControlFlowConfig(
   if (config.loop_termination_condition)
     result.loop_termination_condition = config.loop_termination_condition;
   if (config.max_iterations) result.max_iterations = config.max_iterations;
+  if (Array.isArray(config.parallel_branches))
+    result.parallel_branches = config.parallel_branches;
+  if (config.wait_policy) result.wait_policy = config.wait_policy;
+  if (config.wait_count) result.wait_count = config.wait_count;
   if (config.review_instructions)
     result.review_instructions = config.review_instructions;
   return result;

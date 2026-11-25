@@ -59,6 +59,8 @@ from orchestration_platform.integrations.abstractions.external_clients import (
 from orchestration_platform.observability.run_log.fields import (
     BUSINESS_CATEGORY_DEFAULT,
 )
+from orchestration_platform.observability.run_log.redactor import RunLogRedactor
+from orchestration_platform.observability.run_log.truncation import Truncator
 from orchestration_platform.persistence.abstractions.execution_queue import (
     IExecutionQueue,
 )
@@ -571,6 +573,82 @@ class NodeEventCallbackImpl:
             logging.warning(
                 "NODE_FAILED 事件追加失败: instance_id=%s, node_id=%s",
                 instance_id, node_id, exc_info=True,
+            )
+
+    async def on_node_failed_with_input(
+        self,
+        instance_id: str,
+        node_id: str,
+        trace_id: str,
+        error: str,
+        input_snapshot: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """失败事件回调（B13 U3/D6）：NODE_FAILED payload 附失败输入快照。
+
+        快照净化顺序沿 run_log recorder 惯例（CHG-04/05）：先脱敏（字段名
+        黑名单红线，RunLogRedactor）→ 再截断（Truncator，上限
+        log_max_payload_bytes）；超限时 input 退化为带截断标记的前缀字符串。
+        input_snapshot 为 None 时 payload 不含 input 键（旧语义等价）。
+        """
+        try:
+            payload: Dict[str, Any] = {"error": error}
+            if input_snapshot is not None:
+                payload["input"] = self._sanitize_failed_input(input_snapshot)
+            self._registry.append_event(instance_id, {
+                "event_id": str(uuid.uuid4()),
+                "instance_id": instance_id,
+                "event_type": "NODE_FAILED",
+                "node_id": node_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "payload": payload,
+            })
+        except Exception:
+            logging.warning(
+                "NODE_FAILED(带输入快照) 事件追加失败: instance_id=%s, node_id=%s",
+                instance_id, node_id, exc_info=True,
+            )
+
+    def _sanitize_failed_input(self, snapshot: Dict[str, Any]) -> Any:
+        """失败输入快照净化：脱敏 → 截断（顺序沿 run_log recorder :326-342 惯例）。"""
+        redacted = RunLogRedactor().redact(snapshot)
+        try:
+            max_bytes = int(get_settings().log_max_payload_bytes)
+        except Exception:
+            max_bytes = 65536
+        value, _truncated = Truncator().truncate_field(redacted, max_bytes)
+        return value
+
+    async def on_parallel_branch(
+        self,
+        instance_id: str,
+        join_node_id: str,
+        branch_entry_id: str,
+        status: str,
+        trace_id: str,
+    ) -> None:
+        try:
+            self._registry.append_event(instance_id, {
+                "event_id": str(uuid.uuid4()),
+                "instance_id": instance_id,
+                "event_type": (
+                    "PARALLEL_BRANCH_STARTED"
+                    if status == "started"
+                    else "PARALLEL_BRANCH_COMPLETED"
+                ),
+                "node_id": join_node_id,
+                "branch_id": branch_entry_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "payload": {
+                    "join_node_id": join_node_id,
+                    "branch_entry_id": branch_entry_id,
+                    "status": status,
+                },
+            })
+        except Exception:
+            logging.warning(
+                "并行分支事件追加失败: instance_id=%s, join=%s, branch=%s",
+                instance_id, join_node_id, branch_entry_id,
+                exc_info=True,
             )
 
 

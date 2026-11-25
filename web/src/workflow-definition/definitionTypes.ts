@@ -43,6 +43,9 @@ export type ControlFlowKind =
 /** 并行失败策略 */
 export type ParallelFailureStrategy = "fast_fail" | "wait_all";
 
+/** 汇聚等待策略（与后端 JoinWaitPolicy 对齐） */
+export type JoinWaitPolicy = "wait_all" | "wait_any" | "wait_n_of_m";
+
 /** 工具来源 */
 export type ToolSource = "local" | "mcp";
 
@@ -184,6 +187,9 @@ export interface ControlFlowNodeConfiguration {
   max_iterations?: number;
   // 并行汇聚
   parallel_failure_strategy: ParallelFailureStrategy;
+  parallel_branches?: string[];
+  wait_policy?: JoinWaitPolicy;
+  wait_count?: number;
   // 人工审核门
   review_instructions?: string;
   review_timeout_action: "reject" | "wait";
@@ -612,12 +618,16 @@ export interface ValidationIssue {
   node_id?: string;
   edge_id?: string;
   location?: { line?: number; column?: number };
+  /** 关联配置字段（字段级定位，B13 U3）：与后端 common.py ValidationIssue.field 对齐 */
+  field?: string;
 }
 
 /** 校验报告 */
 export interface ValidationReport {
   valid: boolean;
   issues: ValidationIssue[];
+  /** 被校验定义标识（后端裸报告携带；解析失败时为 null，B13 U3） */
+  definition_id?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -225,6 +225,80 @@
   3.5s / collect 3880）；parity drill 复跑 PASS 11/11；**版本维持
   0.3.0**（金档冻结即契约面不变，无 API 变更）。
 
+### B13 可视化与错误批（U2+U3）
+
+- **Round-trip 三字段（T1）**：`definitionTypes.ts`
+  `ControlFlowNodeConfiguration` 追加 `parallel_branches` / `wait_policy`
+  / `wait_count`（与后端 `JoinWaitPolicy` 对齐）；`canvasToYamlExporter.ts`
+  白名单拷贝（数组 `Array.isArray` 判）；导入侧零改动（spread 守卫
+  SHA 比对）；`parallelRoundTrip.test.ts` 新增——workflow-definition
+  目录 vitest 43 passed（6 文件）。
+- **分支事件桥接（T2，U2 后端）**：`execution_runner.py`
+  `NodeEventCallbackImpl` 新增可选 `on_parallel_branch`（沿 append_event
+  范式；event_type 按 status 取 PARALLEL_BRANCH_STARTED/COMPLETED；
+  payload {join_node_id, branch_entry_id, status} + 顶层 branch_id）；
+  `scheduler.py` `_publish_parallel_event` 治理总线早退**之前**插入
+  getattr 守卫桥接（publisher=None 泳道事件仍入流）；worker 模式同
+  Impl 自动覆盖（导入同一性断言）；`test_parallel_branch_stream_events.py`
+  4 passed。
+- **泳道面板（T3，U2 前端）**：新 `parallelRegionStatus.ts`
+  （deriveParallelRegions join 扫描 + edges 分支路径推导；
+  reduceBranchStatuses 五态 + 三 wait 策略文案 + 已收敛）；
+  `NodeExecutionStatusOverlay.tsx` 分支事件分流（节点映射前）+ 泳道块
+  （`wfp-overlay-parallel*` BEM，非收起区）；新测试 2 文件——两目录
+  vitest 99 passed（13 文件）。
+- **ValidationIssue.field（T4，U3 后端）**：`domain/models/common.py`
+  + `sdk/wfp_sdk/models.py` 镜像（dataclass/from_dict 补链）；validator
+  可得子集填充 20 站（触发器段 schedule/event_source/input_template +
+  预设段 16 站 + agent model_identifier），结构与拓扑类保持 None；
+  **join 三字段镜像站回退**：design D4 假设 validator 已有 parallel_join
+  等待字段校验（基线实无），初版净新增三段 ERROR 与
+  `GraphCompiler.compile:78` 入口全量 validate 冲突——编译期
+  `details["rule"]` 契约（既有测试零修改红线）被提前拦截，全量
+  pytest 3 FAILED 实测定位后回退（行为回基线，编译期契约由
+  `test_parallel_fanout_compile.py` 6a/6b/6c 继续锁定），遗留登
+  tech-debt TD-02；`test_validation_issue_field_location.py` 10 passed
+  + ruff clean。
+- **校验面板 + 一键跳转（T5，U3 前端）**：`apiTypes.ts` 裸报告修型
+  （`ValidateWorkflowResponse` = `ValidationReport` 形状，请求体
+  `yaml_text` 对齐 router）；新 `ValidationIssuesPanel.tsx`（色点 /
+  code / message / `节点 X · 字段 Y · 行 Z` 定位 / 「定位到画布」/
+  role=alert）；`App.tsx` 运行前置校验（canvasToYaml → validate →
+  未通过渲染面板不启动，sessionStorage effect 零触碰）；
+  `WorkflowCanvas.tsx` 受控 `focusNodeRequest`（nonce → setCenter
+  zoom 1 / duration 300）；vitest 选区 97 文件 812 passed + 1 skipped、
+  typecheck 0。
+- **失败输入快照（T6，U3）**：NODE_FAILED payload 附 input 快照——
+  `_sanitize_failed_input` = RunLogRedactor→Truncator（顺序沿 recorder
+  口径，上限 `log_max_payload_bytes`）；scheduler 失败路径新形态回调
+  `on_node_failed_with_input`（快照复用 / run_log_recorder 缺席现场
+  `dict(node_outputs)` 补采 / 旧回调兜底；:1304 取消路径不动）；前端
+  `failureFeedback.ts` + overlay 折叠 JSON 块（aria-expanded +
+  `wfp-overlay-feedback__snapshot*` 浅/深双轨）；
+  `test_node_failed_input_snapshot.py` 5 passed（1.11s）+ overlay
+  vitest 2 passed（exec-vis 9 文件 64 passed）+ 调度器相关回归 34/34
+  （junit errors=0 failures=0）。
+- **e2e 扩充（T7）**：`06-validation-jump.spec.ts`（缺省条件分支空
+  conditions → 校验面板「1 错误 / 0 警告」/ 问题行 / 定位行 → 负向
+  断言无 instances POST → 定位到画布选中态 → 关闭）；`07-parallel-
+  visualization.spec.ts`（「导入 YAML」filechooser 导入确定性并行夹具
+  `e2e/fixtures/parallel-visualization.yaml`——trigger 双 output_display
+  分支 + parallel_join（data_transform 需列表输入而 UI 硬编码空 inputs
+  不可行，形态偏差在档）→ 泳道「并行汇聚 · 并行分支」/ display_a·
+  display_b 成功 / 已收敛 / 成功: 4；TestClient probe 全链路预验证：
+  validate valid=true 仅 1 WARNING、实例 succeeded、
+  PARALLEL_BRANCH_STARTED/COMPLETED×2）；新 spec 独立连续 2 轮全绿
+  （11.9s/11.0s）+ 全量 8 spec 8 passed（20.4s）。
+- **门禁基线（本批实测，锚 420958a）**：全量 pytest **3896 passed +
+  3 skipped = 3899 collected / 0 failed exit 0**（= 3861 基线 + 本批
+  +19（T2 4/T4 10/T6 5）+ B14 并行会话 +19，junit errors=0
+  failures=0）；vitest **1046 passed + 13 skipped（129 文件）**
+  （基线 1012+13，本批 +34）；typecheck **0 errors（tsc EXIT=0）**；
+  e2e **8/8**；ruff 本批新/改 py 文件零违规；AST 引擎隔离（pytest
+  全量含 `test_engine_import_isolation` 绿）；**版本维持 0.3.0**。
+  B14（3f2a489）于本批收口期间并行提交，本批提交叠其上；join 三字段
+  回退后 `test_parallel_fanout_compile.py` 14/14 恢复绿。
+
 ---
 
 ## [0.3.0] - 2026-11-23

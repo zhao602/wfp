@@ -6,7 +6,7 @@
 
 import type {
   WorkflowDefinition,
-  ValidationReport,
+  ValidationIssue,
   DataSourceType,
 } from "../workflow-definition/definitionTypes";
 
@@ -25,14 +25,16 @@ export interface ApiErrorResponse {
 // 工作流定义接口类型
 // ---------------------------------------------------------------------------
 
-/** POST /workflows/validate 请求体 */
+/** POST /workflows/validate 请求体（B13 U3 修型：与后端 ValidateRequest 对齐，yaml_text 载荷） */
 export interface ValidateWorkflowRequest {
-  definition: WorkflowDefinition;
+  yaml_text: string;
 }
 
-/** POST /workflows/validate 响应体 */
+/** POST /workflows/validate 响应体（B13 U3 修型：后端裸报告 model_dump，去 {report} 包装） */
 export interface ValidateWorkflowResponse {
-  report: ValidationReport;
+  valid: boolean;
+  issues: ValidationIssue[];
+  definition_id?: string | null;
 }
 
 /** POST /workflows 请求体 */

@@ -14,7 +14,10 @@ import ResizableSplitter from "./canvas/ResizableSplitter";
 import ExampleLibraryPanel from "./example-library/ExampleLibraryPanel";
 import YamlFileImportButton from "./example-library/YamlFileImportButton";
 import NodeExecutionStatusOverlay from "./execution-visualization/NodeExecutionStatusOverlay";
+import ValidationIssuesPanel from "./execution-visualization/ValidationIssuesPanel";
 import type { WorkflowCanvasState, CanvasNodeData } from "./canvas/canvasTypes";
+import type { FocusNodeRequest } from "./canvas/WorkflowCanvas";
+import type { ValidationReport } from "./workflow-definition/definitionTypes";
 import { removeNode } from "./canvas/canvasMutations";
 import { applyAgentTemplateToCanvas } from "./canvas/applyAgentTemplate";
 import type { AgentTemplate } from "./market/marketTypes";
@@ -538,6 +541,11 @@ export default function App() {
   const [runError, setRunError] = useState<string | null>(null);
   // 导出失败提示（DC-05/FR-2.6 失败不静默）：成功路径恒 null → 提示 span 不渲染
   const [exportError, setExportError] = useState<string | null>(null);
+  // B13 U3：最近一次运行前校验报告（独立 state，null = 不渲染校验面板）——
+  // 校验失败不启动实例 → 不触碰 activeInstanceId（:526 sessionStorage 同步 effect 不受影响）
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  // B13 U3：画布受控聚焦请求（nonce 单调递增，一次性消费语义见 WorkflowCanvas）
+  const [focusNodeRequest, setFocusNodeRequest] = useState<FocusNodeRequest | null>(null);
   // 两路面板宽度 state：宽度唯一持有者为 App.tsx（spec 5.1.1.8a）；
   // 随组件卸载（切换管理后台）自动复位，会话内保持、不持久化、往返/刷新复位（spec 5.2.1.8a/9a）；
   // 首次渲染宽度即现值，无"先宽后窄"闪变（spec 5.3.3.3a）
@@ -588,6 +596,17 @@ export default function App() {
         return;
       }
       const yamlText = canvasToYaml(canvasState);
+      // B13 U3 校验前置（design D5.3）：运行前先走后端 /workflows/validate（yaml_text 载荷，
+      // 与 router ValidateRequest 对齐）；未通过 → 渲染校验面板并中止启动
+      // （不触碰 activeInstanceId → sessionStorage 同步 effect 不受影响）
+      const report = await orchestrationApiClient.validateWorkflow({
+        yaml_text: yamlText,
+      });
+      if (!report.valid) {
+        setValidationReport(report);
+        return;
+      }
+      setValidationReport(null);
       const definitionId = `canvas_${Date.now()}`;
       const response = await orchestrationApiClient.startInstance({
         definition_id: definitionId,
@@ -607,6 +626,15 @@ export default function App() {
       setIsRunning(false);
     }
   }, [canvasState, isRunning, activeInstanceId]);
+
+  /**
+   * 校验面板「定位到画布」（B13 U3）：选中目标节点 + 发起画布聚焦。
+   * nonce 函数式自增（同节点重复定位亦产生新请求）；一次性消费语义见 WorkflowCanvas。
+   */
+  const handleLocateValidationNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    setFocusNodeRequest((prev) => ({ nodeId, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
 
   /**
    * 删除节点编排：按钮与键盘两入口的共同终点。
@@ -902,12 +930,20 @@ export default function App() {
               onDeleteNode={handleDeleteNode}
               onDeleteEdge={handleDeleteEdge}
               canvasGeneration={canvasGeneration}
+              focusNodeRequest={focusNodeRequest}
             />
           </CanvasErrorBoundary>
           {activeInstanceId && (
             <NodeExecutionStatusOverlay
               instanceId={activeInstanceId}
               canvasState={canvasState}
+            />
+          )}
+          {validationReport !== null && (
+            <ValidationIssuesPanel
+              report={validationReport}
+              onLocateNode={handleLocateValidationNode}
+              onClose={() => setValidationReport(null)}
             />
           )}
         </div>

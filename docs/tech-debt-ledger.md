@@ -99,6 +99,24 @@
 | 遗留边界 | 多副本部署注册表幂等 / 落库持久化 / misfire 追补属 Wave2b F9 登记态（design §6.3 R3）；三处已知限制声明原文维持——模型注释（`domain/models/node_configurations.py:196/:206`）、前端提示（`web/src` nodeConfigHints.ts 等）、用户文档（`docs/node-usage-guide.md:70`）——更新必要性评估已登记（Z-1 前端零改动 / 范围守恒优先，Wave2b F9 与前端波及届时一并裁决），详见 `trigger_input_template_resolution/DISPOSITION.md` Wave2 追加块 |
 | 状态 | **已销项（关闭）**——本章条目直接关闭，B 档清理流程不适用（本章首段约定） |
 
+### TD-02 ValidationIssue.field 覆盖余量与 join 等待字段 validate 阶段定位缺失
+
+| 字段 | 内容 |
+|------|------|
+| 现象 | field 机制已交付（`domain/models/common.py` + `sdk/wfp_sdk/models.py` 镜像 + 面板「字段 Y」定位行），但站点填充仅 20 处（触发器段 schedule/event_source/input_template + 预设段 16 站 + agent model_identifier，B13 T4）；其余校验站点（结构/拓扑/其余配置类）field=None。**join 三字段（wait_policy/wait_count/parallel_branches）validate 阶段定位缺失**：B13 T4 初版按 design D4 净新增三段镜像校验（设计假设 validator 已有 parallel_join 等待字段校验，基线实无），与 `GraphCompiler.compile:78` 入口全量 validate 冲突——编译期 `details["rule"]` 契约（`test_parallel_fanout_compile.py` 6a/6b/6c，既有测试零修改红线）被提前拦截为 issues 形态（全量 pytest 3 FAILED 实测定位），已回退（行为回基线） |
+| 影响 | 校验面板对多数问题的「字段 Y」定位行缺失（仅「节点 X」）；join 等待字段配置错误在运行前校验不可见——面板 valid=true 放行后启动时被编译期拒绝，用户看到启动失败而非面板字段定位 |
+| 处置 | 全量覆盖：按校验器类别批量补 field 参数（低风险机械活，逐类补 pytest 断言）；join 三字段：重构 compile 入口与编译期校验的分层（validate 报 issue 且保留编译期 rule 契约——单源转译或阶段豁免二选一），落地须连跑 `test_parallel_fanout_compile.py` 全 14 例锁定 |
+| 关联 | `.codeartsdoer/specs/roadmap_b13_visualization_errors/`（tasks.md T4 回退裁决）；`src/orchestration_platform/engine/graph_compiler.py:78` |
+
+### TD-03 RunLogRedactor URL 凭据模式类字符长串二次方回溯
+
+| 字段 | 内容 |
+|------|------|
+| 现象 | `observability/run_log/redactor.py:32` `_URL_CREDENTIAL_PATTERN` 对超长连续类字符段（`[a-z0-9+.-]` 无空格串）产生二次方级回溯——B13 T6 测试开发期实测对抗性长串输入 redact() 单次 **58.62s**；既有测试以空格分隔短 token 规避（`tests/unit/test_node_failed_input_snapshot.py:230-232` 注释在档） |
+| 影响 | 极端节点输出（超长无空格字母数字点串）进入失败输入快照 / run log 脱敏路径时可能秒级~分钟级阻塞（B13 起 NODE_FAILED 快照路径新增暴露面） |
+| 处置 | 模式改写降低回溯（预长度门 / 两段式匹配 / 预扫描短路三选一），补性能回归测试（1MB 量级类字符 blob redact ≤ 1s）后移除测试规避注释 |
+| 关联 | `tests/unit/test_node_failed_input_snapshot.py`（规避口径注释）；`tests/unit/test_run_log_redaction_truncation.py`（值模式既有覆盖） |
+
 ## 附录：复查命令集
 
 ```bash

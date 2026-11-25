@@ -70,6 +70,7 @@ class ValidationIssue(BaseModel):
     node_id: Optional[str] = Field(default=None, description="关联节点标识（供画布定位）")
     edge_id: Optional[str] = Field(default=None, description="关联连线标识（供画布定位）")
     location: Optional[SourceLocation] = Field(default=None, description="YAML 行列号")
+    field: Optional[str] = Field(default=None, description="关联配置字段（字段级定位，B13 U3）")
 
 
 class ValidationReport(BaseModel):

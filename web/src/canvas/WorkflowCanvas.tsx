@@ -73,6 +73,19 @@ const VIEWPORT_APPLY_MAX_ATTEMPTS = 12;
  */
 const AUTO_FIT_WINDOW_MS = 1500;
 
+/**
+ * 受控聚焦回退尺寸（B13 U3）：目标节点尚未被 React Flow 测量（nodeDimensions 缺项）时，
+ * setCenter 中心点计算的估算基准；测量到达后自动改用实测值。
+ */
+const FOCUS_FALLBACK_NODE_WIDTH = 180;
+const FOCUS_FALLBACK_NODE_HEIGHT = 60;
+
+/** 受控聚焦请求（B13 U3）：nonce 单调递增驱动一次性视口平移（同 nonce 重放不重复触发） */
+export interface FocusNodeRequest {
+  nodeId: string;
+  nonce: number;
+}
+
 /** 画布组件属性 */
 interface WorkflowCanvasProps {
   canvasState: WorkflowCanvasState;
@@ -94,6 +107,13 @@ interface WorkflowCanvasProps {
    * (b) <ReactFlow key> 代际重挂载以清空库内部注册表（nodeInternals）。
    */
   canvasGeneration?: number;
+  /**
+   * 受控聚焦请求（B13 U3，可选，默认 null 不生效，向后兼容）：nonce 变化时将
+   * 视口平移至 nodeId 节点中心（setCenter，zoom 1 / duration 300ms）；
+   * 一次性消费语义——已消费 nonce 重放 / StrictMode 双跑不重复触发；
+   * 实例未就绪或目标不存在时请求保留，待后续渲染兑现。
+   */
+  focusNodeRequest?: FocusNodeRequest | null;
 }
 
 /** 节点类型注册表：将 node_type 映射到渲染组件 */
@@ -276,6 +296,7 @@ export default function WorkflowCanvas({
   onDeleteNode,
   onDeleteEdge,
   canvasGeneration = 0,
+  focusNodeRequest = null,
 }: WorkflowCanvasProps) {
   const themeMode = useThemeMode();
   const isDark = themeMode === "dark";
@@ -350,6 +371,34 @@ export default function WorkflowCanvas({
 
   /** 持有 ReactFlow 实例，供 onDrop 调用 screenToFlowPosition 做坐标转换 */
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+
+  /** 已消费的聚焦 nonce（B13 U3）：一次性消费语义的归属标记 */
+  const lastFocusNonceRef = useRef<number>(-1);
+  /**
+   * 受控聚焦请求消费（B13 U3）：nonce 变化 → setCenter 平移视口至目标节点中心。
+   * 宽高优先取运行时实测（nodeDimensions，CHG-7），未测量时按回退常量估算；
+   * 实例未就绪 / 目标不存在时不消费（请求保留，待后续渲染兑现）。
+   */
+  useEffect(() => {
+    if (focusNodeRequest === null) return;
+    if (lastFocusNonceRef.current === focusNodeRequest.nonce) return;
+    const instance = rfInstanceRef.current;
+    if (instance === null) return;
+    const target = canvasState.nodes.find(
+      (node) => node.id === focusNodeRequest.nodeId,
+    );
+    if (target === undefined) return;
+    lastFocusNonceRef.current = focusNodeRequest.nonce;
+    const size = nodeDimensions[target.id] ?? {
+      width: FOCUS_FALLBACK_NODE_WIDTH,
+      height: FOCUS_FALLBACK_NODE_HEIGHT,
+    };
+    instance.setCenter(
+      target.position.x + size.width / 2,
+      target.position.y + size.height / 2,
+      { zoom: 1, duration: 300 },
+    );
+  }, [focusNodeRequest, canvasState.nodes, nodeDimensions]);
 
   /** 画布容器（与 React Flow pane 同尺寸）：视口测量与用户交互监听的锚点 */
   const containerRef = useRef<HTMLDivElement | null>(null);

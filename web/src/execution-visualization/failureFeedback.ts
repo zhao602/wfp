@@ -18,6 +18,8 @@ export interface NodeFailureEntry {
   displayName?: string;
   /** 已格式化的失败原因文本（非空） */
   reason: string;
+  /** 失败输入快照（B13 U3：payload.input，后端脱敏+截断后载荷；undefined = 无快照） */
+  inputSnapshot?: unknown;
 }
 
 /** 执行失败态可辨识联合：区分节点级 / 实例级 / 连接异常三类失败（DC-7） */
@@ -33,6 +35,16 @@ export type ExecutionFailure =
 export function extractError(payload: Record<string, unknown>): string {
   const value = payload["error"];
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * 从事件 payload 中安全提取失败节点输入快照（B13 U3）。
+ * 类型守卫：payload["input"] 为 undefined/null（缺失或显式空）返回 undefined，
+ * 其余形态（对象/数组/字符串）原样返回，供可折叠 JSON 块渲染。
+ */
+export function extractInputSnapshot(payload: Record<string, unknown>): unknown {
+  const value = payload["input"];
+  return value === undefined || value === null ? undefined : value;
 }
 
 /**
