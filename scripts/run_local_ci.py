@@ -6,6 +6,8 @@
 #     1. backend lint  —— ruff check .（PYTHONPATH=src）；
 #     2. engine import isolation —— M4 B10 六前缀门禁（design D5，
 #        scripts/check_engine_imports.py，与 CI backend job 同步插步）；
+#     2.5 contract snapshot —— B14 契约金档门禁（scripts/check_contract_snapshot.py，
+#        openapi 全量金档字节比对 + SDK/web/apiTypes 三面提取断言）；
 #     3. backend tests —— pytest 收集（--collect-only -q，与 pytest -q 同发现口径）；
 #     4. （--frontend 触发）frontend tests —— web/ 下 vitest 单文件口径
 #        （与 CI `npm test` 同运行时，单文件控制沙箱时长 ≤180s，§13.2）。
@@ -134,6 +136,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # GBK 控制台防崩（B14 T1b 修复）：子进程输出经 errors="replace" 解码后可能含
+    # U+FFFD 等 GBK 不可编码字符，摘要打印直接 UnicodeEncodeError（实测：步骤全
+    # PASS 后崩在汇总行，见 roadmap_b14_contract_fault_batch spec §2）；
+    # stdout/stderr 宽松编码为替换而非抛异常。
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
     summaries: list[tuple[bool, str]] = []
     all_ok = True
     pythonpath_env = {"PYTHONPATH": "src"}
@@ -157,6 +169,16 @@ def main() -> int:
     ok, summary, _ = _run_step(
         "engine import isolation (check_engine_imports)",
         [sys.executable, "scripts/check_engine_imports.py"],
+        PROJECT_ROOT,
+        {},
+    )
+    all_ok = all_ok and ok
+    summaries.append((ok, summary))
+
+    # ---------- 2.5 contract snapshot（B14 T2；契约金档门禁） ----------
+    ok, summary, _ = _run_step(
+        "contract snapshot (check_contract_snapshot)",
+        [sys.executable, "scripts/check_contract_snapshot.py"],
         PROJECT_ROOT,
         {},
     )

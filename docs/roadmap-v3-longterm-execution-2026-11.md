@@ -129,6 +129,7 @@ S2(SSO 闭环, 5–8 或 0.5 人日) —— 可插小批，建议 B15 前
 - **T2 契约测试**：OpenAPI snapshot + Python SDK 契约用例（前端契约面 `apiTypes.ts` 234 行 / `orchestrationApiClient.ts` 277 行纳入 snapshot 对照）；TS 对拍待 F6 解冻（v3 F6 为 P2 冻结项），本批不手写 TS SDK。
 - **T4 故障注入**：四类——PG 断连、LLM 超时、webhook 5xx、worker `kill -9` 后续跑（依赖 B9）；脚本入 `scripts/`。
 - **出口验收**：四注入全绿并留档；契约 snapshot 纳入本地门禁（CI 待 remote 后接入）。
+- **进度（2026-11-25）**：B14 收口（见 `roadmap_b14_contract_fault_batch` exit-record）——契约 snapshot 门禁：`scripts/check_contract_snapshot.py` + 双金档 `tests/fixtures/contracts/`（openapi_v1.json 126 路径字节冻结；contract_surfaces.json SDK 8 / web 23 / apiTypes 25·31 三面提取）入 run_local_ci 步 2.5 + 薄包装 1 例，变更纪律落 `docs/sdk-contract.md` §5.1；SDK 对拍 drill：`scripts/drill/b14_sdk_parity.py` 真实后端 + `WorkflowClient` 9 方法全序列 PASS 11/11（`_drills/` 留档含隔离复跑件）；四类注入：PG 断连 8 / LLM 超时 4 / webhook 5xx 4（pytest 假件套件）+ kill-9 零修改重跑 6/6 新鲜留档 + 检查点崩溃窗 W1/W2 定向 2 例；隔离工作树权威门禁（HEAD `420958a` + 本批 11 文件）：pytest 3877+3=3880 exit 0、run_local_ci ALL PASS、drill 复跑 PASS 11/11。
 
 ### B15 交付加固批（S3+S4+S5）— 13 人日
 
@@ -170,3 +171,4 @@ T3 性能 CI 门（3，先以本地 gate 脚本代 CI）；A7 文档一致性门
 2. **P2 已执行（2026-11-22）**：B8d e2e 批收口落 `main`（提交 `4d93831`，出口记录五节在档，v3 附录 B 已随批刷新）后，在 v3 §第三部分头部补本文交叉链接；并发冲突窗口解除后执行。
 3. **P3 两项裁决已定（2026-11-23）**：①B9 启动——已启动（M1 执行队列与统一提交路径落 `d2058a6`；M2 由并行会话以 `roadmap_m2_worker_process`（独立 worker 进程形态）执行中，本会话同日三件套（同进程形态）因撞批撤回，移交/差异项已登 §4 B9「M3 小批输入」）；②S2 走向——**xmlsec 验签落地**（摘 experimental，5–8 人日，插班时点建议 B15 前）。
 4. **B12 已执行（2026-11-24）**：P3 数据分块批收口——取数游标化 + 快照结构共享 + 变换行数守卫 + 检查点写路径 D7-lite（gate 触发后改道，spill-to-disk 经复测 140.7MB≤150MB 正式裁撤，行使 §8 风险 3 裁剪序②）；pipeline_100k 内存 248.1→140.7MB（−43.3%）、四基准 timing p95 −17%~−77%（A/B 同窗 worktree 对照，docs/benchmark.md §3.1）；出口记录五节在档（`.codeartsdoer/specs/roadmap_b12_data_chunking/`）；单提交落 `a32a647`（index surgery 排除并行批触点）。
+5. **B14 已执行（2026-11-25）**：T2+T4 契约与故障批收口——契约 snapshot 双金档（openapi_v1.json 126 路径字节冻结 + contract_surfaces.json SDK 8/web 23/apiTypes 25·31 三面提取）入 run_local_ci 步 2.5 + `sdk-contract` §5.1 变更纪律；SDK 对拍 drill PASS 11/11（真实后端 + `wfp_sdk` 9 方法全序列，`_drills/` 留档双份）；四类注入全绿（PG 断连/LLM 超时/webhook 5xx 套件 16 例 + 检查点崩溃窗 2 例 + kill-9 零修改重跑 6/6）；隔离工作树权威口径 pytest 3877+3=3880 exit 0 / run_local_ci ALL PASS；出口记录五节在档（`.codeartsdoer/specs/roadmap_b14_contract_fault_batch/`）；TS 对拍待 F6 解冻（批内裁决维持）。

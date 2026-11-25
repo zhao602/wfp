@@ -185,6 +185,46 @@
   组件级复验精确一致，残余 −18 无原始捕获可审计）；vitest 1012+13；
   typecheck 0 error；e2e 6/6（37.3s）；AST 门禁 PASS；**版本维持 0.3.0**。
 
+### B14 契约与故障批（T2+T4）
+
+- **契约 snapshot 门禁（T2）**：`scripts/check_contract_snapshot.py` +
+  双金档 `tests/fixtures/contracts/`——openapi_v1.json（126 路径全量
+  OpenAPI 字节冻结）+ contract_surfaces.json（SDK 方法 8 / web 端点
+  23 / apiTypes 声明导出 25·复导出 31 三面提取钉扎）；`--regen` 纪律
+  与破坏性变更流程落 `docs/sdk-contract.md` §5.1；接线 run_local_ci
+  步 2.5 + 薄包装 `test_contract_snapshot_gate.py`。TS 对拍按批内
+  裁决待 F6 解冻，本批不手写 TS SDK。
+- **SDK 对拍 drill（T2）**：`scripts/drill/b14_sdk_parity.py`——真实
+  后端（BenchServer）+ `wfp_sdk.WorkflowClient` 9 方法全序列 wire
+  对拍（validate 合法/非法双域、submit、start、SSE 全量回放、轮询
+  同源对账、wait、results、cancel 409 INSTANCE_CANCEL_CONFLICT、
+  终态快照）；PASS 11/11，留档 `_drills/`（含隔离工作树复跑件）。
+- **PG 断连注入（T4）**：`test_postgres_unavailable_injection.py`
+  （8 例，asyncpg 0.32.0 真接口）——连接池创建失败单例不毒化 + 恢复；
+  事务中段断连干净中止（ROLLBACK、零后继语句、连接归还）+ API 边界
+  500 映射；执行队列租约三重门控（claim FOR UPDATE SKIP LOCKED；
+  heartbeat/complete/fail lease_owner+status 门控）。
+- **LLM 超时注入（T4）**：`test_llm_timeout_injection.py`（4 例，
+  真实 HttpLlmClient + httpx patch）——超时文案内聚「LLM 请求超时
+  （上限 Xs）」零外逸；重试退避 base×2ⁿ；执行器 LLM_INFERENCE_FAILED；
+  调度器 NodeExecutionError + 下游零执行。
+- **webhook 5xx 注入（T4）**：`test_webhook_delivery_fault_injection.py`
+  （4 例）——恒 500 → 5 次尝试 → failed + DLQ 完整 payload_snapshot；
+  瞬态恢复 delivered；红驱 attempts 累计（5+1=6）；全链路 bus→DLQ→
+  换 client→红驱→送达；每请求 X-Orch-Signature 在场且复算。
+- **检查点崩溃窗与 kill-9（T4）**：`test_checkpoint_crash_window_injection.py`
+  （2 例）——W1 幽灵索引项（再写放行 + 索引自愈）/ W2 torn 数据文件
+  （exists() 即信吸收、latest_for_instance 跳过回退）；kill-9 drill
+  （m3_kill9_takeover.py）零修改重跑 PASS 6/6 新鲜留档。
+- **run_local_ci 加固**：GBK 防崩（stdout/stderr reconfigure
+  errors=replace）+ 契约 snapshot 插步。
+- **门禁基线（隔离工作树权威口径，HEAD 420958a + 本批 11 文件）**：
+  全量 pytest **3877 passed + 3 skipped = 3880 collected exit 0**
+  （220 文件；本批 +19：门禁 1/PG 8/LLM 4/webhook 4/崩溃窗 2）；
+  run_local_ci ALL PASS（lint 761 文件 / 引擎隔离 / 契约 snapshot
+  3.5s / collect 3880）；parity drill 复跑 PASS 11/11；**版本维持
+  0.3.0**（金档冻结即契约面不变，无 API 变更）。
+
 ---
 
 ## [0.3.0] - 2026-11-23

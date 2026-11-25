@@ -108,6 +108,24 @@ SDK 解析顺序：顶层 `code` → `detail.code` → `detail`（字符串）�
 - SDK 语义化版本（0.1.0 起）；破坏性契约变更 → `/api/v2` 或 SDK major；
 - SSE 帧格式（`data: <json>\n\n` + `STREAM_END` 收尾）冻结。
 
+### 5.1 契约 snapshot 门禁（B14 接入，2026-11-25）
+
+上述纪律的机器执行：契约面以字节级金档冻结，本地 CI 与 pytest 门禁逐字节对照。
+
+- **金档**（`tests/fixtures/contracts/`）：
+  - `openapi_v1.json`——`create_app()` 全量 OpenAPI 3.1 schema（126 路径）；
+  - `contract_surfaces.json`——运行时提取的三个契约面：SDK 端点面
+    （`wfp_sdk.client`，8 端点）、web 客户端方法面（23 方法/端点）、
+    `apiTypes.ts` 导出面（25 声明 + 31 re-export）。
+- **门禁脚本** `scripts/check_contract_snapshot.py`：
+  - 钉扎 21 路由旗标全 ON + RBAC/TENANT off + `STORAGE_BACKEND=local_file` +
+    LLM 占位，消除环境漂移；差异即 exit 1；
+  - `--regen` 重生成金档——**仅**在走完破坏性变更流程后使用（见下）。
+- **接线**：`run_local_ci.py` 步 2.5（引擎隔离后、pytest 前）；pytest 侧
+  `tests/unit/test_contract_snapshot_gate.py` 薄包装。
+- **破坏性变更流程**：升 `/api/v2` 或 SDK major → 回写本文件 §1/§2 →
+  金档 `--regen` 并随变更提交 → roadmap 回写；跳步即门禁红。
+
 ## §6 非目标记录（当前版本明确不做）
 
 1. 异步客户端（`AsyncWorkflowClient`）——出口移交；
