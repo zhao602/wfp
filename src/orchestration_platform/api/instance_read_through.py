@@ -193,12 +193,12 @@ async def resolve_event_reader(
         raise
 
 
-async def read_instance_snapshot(
-    instance_id: str, *, event_repository: Optional[Any] = None
+def derive_instance_snapshot_from_events(
+    instance_id: str, events: List[ExecutionEvent]
 ) -> Optional[Dict[str, Any]]:
-    """从事件仓储推导实例快照（worker 模式 GET /instances/{id} 读穿透）。
+    """从事件列表推导实例快照（纯函数，无 IO；worker 读穿透与 B16 审批队列共用）。
 
-    无事件返回 None（调用方维持 404）；状态推导按实例级事件类型
+    状态推导按实例级事件类型
     （INSTANCE_QUEUED→pending（M5 可见窗，提交→认领窗口期不再 404）/
     INSTANCE_STARTED→running / COMPLETED→succeeded / FAILED→failed /
     SUSPENDED→waiting_review / CANCELLED→cancelled（M3 design D5——盲区
@@ -209,18 +209,6 @@ async def read_instance_snapshot(
     definition_version 取 QUEUED/STARTED 载荷（B11 版本追溯，非 None 才
     随行——与注册表路径条件键同构）。
     """
-    repo = event_repository if event_repository is not None else _get_event_repository()
-    if repo is None:
-        return None
-    try:
-        events = await repo.list_for_instance(instance_id)
-    except Exception:
-        logger.warning(
-            "读穿透快照查询失败，按未知实例处理: instance_id=%s",
-            instance_id,
-            exc_info=True,
-        )
-        return None
     if not events:
         return None
 
@@ -316,6 +304,29 @@ async def read_instance_snapshot(
     if finished_at is not None:
         result["finished_at"] = finished_at
     return result
+
+
+async def read_instance_snapshot(
+    instance_id: str, *, event_repository: Optional[Any] = None
+) -> Optional[Dict[str, Any]]:
+    """从事件仓储推导实例快照（worker 模式 GET /instances/{id} 读穿透）。
+
+    无事件返回 None（调用方维持 404）；推导逻辑见
+    derive_instance_snapshot_from_events（B16 提取为纯函数共用）。
+    """
+    repo = event_repository if event_repository is not None else _get_event_repository()
+    if repo is None:
+        return None
+    try:
+        events = await repo.list_for_instance(instance_id)
+    except Exception:
+        logger.warning(
+            "读穿透快照查询失败，按未知实例处理: instance_id=%s",
+            instance_id,
+            exc_info=True,
+        )
+        return None
+    return derive_instance_snapshot_from_events(instance_id, events)
 
 
 async def record_instance_cancelled_event(

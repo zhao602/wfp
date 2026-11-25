@@ -144,3 +144,24 @@ class EventSubscriptionRegistry:
         )
         self._persist()
         return self._subscriptions[subscription_id]
+
+    def rotate_secret(self, subscription_id: str, new_secret: str) -> WebhookSubscription:
+        """轮换订阅密钥（B16 F5，design D6）。
+
+        服务端生成新密钥经调用方传入：secret 原子替换、secret_version+1、
+        rotated_at=now（新值即时生效——无双签名宽限，用户裁决 2026-11-25）；
+        未注册抛 KeyError（路由层映射 404）。
+        """
+        from datetime import datetime, timezone
+
+        subscription = self.get(subscription_id)
+        rotated = subscription.model_copy(
+            update={
+                "secret": new_secret,
+                "secret_version": subscription.secret_version + 1,
+                "rotated_at": datetime.now(timezone.utc),
+            }
+        )
+        self._subscriptions[subscription_id] = rotated
+        self._persist()
+        return rotated

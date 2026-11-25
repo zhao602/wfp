@@ -849,6 +849,48 @@
         "title": "BaselineResponse",
         "type": "object"
       },
+      "BatchReviewBody": {
+        "description": "批量复核请求体（design D4）。",
+        "properties": {
+          "actor": {
+            "description": "决策人标识",
+            "title": "Actor",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "title": "Comment",
+            "type": "string"
+          },
+          "decision": {
+            "description": "审核决策（三值取值域，同 ReviewBody）",
+            "enum": [
+              "approve",
+              "reject",
+              "timeout_action"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "instance_ids": {
+            "description": "待复核实例标识列表（1..100；重复项幂等去重归 skipped）",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Instance Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance_ids",
+          "decision",
+          "actor"
+        ],
+        "title": "BatchReviewBody",
+        "type": "object"
+      },
       "Body_import_document_api_v1_kb_management_knowledge_bases__knowledge_base_id__documents_post": {
         "properties": {
           "annotation_custom": {
@@ -8119,6 +8161,30 @@
       "SubscriptionBody": {
         "description": "订阅注册/更新请求体（宽校验：语义校验经 WebhookSubscription，422 带错误码）。",
         "properties": {
+          "definition_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "定义钉住（None=匹配全部；B16 F5，design D5）",
+            "title": "Definition Id"
+          },
+          "definition_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "版本钉住（需与 definition_id 同时提供）",
+            "title": "Definition Version"
+          },
           "description": {
             "default": "",
             "description": "订阅描述",
@@ -10889,6 +10955,102 @@
         ]
       }
     },
+    "/api/v1/approvals": {
+      "get": {
+        "description": "审批队列：waiting_review 实例聚合查询（挂起时刻降序）。\n\n行字段：instance_id/definition_id/definition_version（非 None 随行）/\ntenant_id/status/checkpoint_id/suspended_at/review_timeout_seconds/\ndeadline/timeout_action/review_instructions。",
+        "operationId": "list_approvals_api_v1_approvals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Approvals Api V1 Approvals Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Approvals",
+        "tags": [
+          "审批队列"
+        ]
+      }
+    },
+    "/api/v1/approvals/batch-review": {
+      "post": {
+        "description": "批量复核：逐项复用 submit_review（双模式零分叉）。\n\n结果分类（design D4）：成功 ok；4xx（409 竞争/404 未知/422 校验）\nskipped；5xx error；重复 instance_id skipped(duplicate)。",
+        "operationId": "batch_review_api_v1_approvals_batch_review_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Batch Review Api V1 Approvals Batch Review Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Batch Review",
+        "tags": [
+          "审批队列"
+        ]
+      }
+    },
     "/api/v1/auth/sso/idps": {
       "get": {
         "description": "列出 IdP 配置。",
@@ -11829,6 +11991,51 @@
           }
         },
         "summary": "Enable Subscription",
+        "tags": [
+          "事件出口"
+        ]
+      }
+    },
+    "/api/v1/event-export/subscriptions/{subscription_id}:rotate-secret": {
+      "post": {
+        "description": "轮换订阅密钥（B16 F5，design D6）：服务端生成、一次性明文回显。\n\n新密钥即时生效（无双签名宽限，用户裁决 2026-11-25）；\nsecret_version+1、rotated_at 随行；未注册 404。\n响应 secret 仅本端点回显（一次性展示；其余端点 secret_set 布尔）。",
+        "operationId": "rotate_subscription_secret_api_v1_event_export_subscriptions__subscription_id__rotate_secret_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "title": "Subscription Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rotate Subscription Secret Api V1 Event Export Subscriptions  Subscription Id  Rotate Secret Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Subscription Secret",
         "tags": [
           "事件出口"
         ]

@@ -48,9 +48,10 @@ const DEFAULT_USER_ID = readStoredString('userId', 'admin');
 const DEFAULT_PERMISSIONS: string[] = ['*'];
 
 // -----------------------------------------------------------------------------
-// 18 面板惰性加载槽（B2-C2/DC-B2-02）：每面板动态 import 一 chunk，静态导入
+// 20 面板惰性加载槽（B2-C2/DC-B2-02）：每面板动态 import 一 chunk，静态导入
 // 全部移除（首屏主 chunk 不含面板字节）；面板 props 契约经 render 回调在
-// renderPanel 调用点逐一类型核对（GK-14 零改动）；MENU_ITEMS 18 项 id 零变化。
+// renderPanel 调用点逐一类型核对（GK-14 提取时 18 项 id 零变化；B16 增
+// approval_queue / subscription_management 槽）。MENU_ITEMS 20 项。
 // -----------------------------------------------------------------------------
 
 const governanceSlot = createLazySlot(() =>
@@ -107,6 +108,12 @@ const toolMarketSlot = createLazySlot(() =>
 const knowledgeBaseSlot = createLazySlot(() =>
   import("../knowledge_base/KnowledgeBasePanel").then((m) => m.KnowledgeBasePanel),
 );
+const approvalQueueSlot = createLazySlot(() =>
+  import("../approval-queue/ApprovalQueuePanel").then((m) => m.ApprovalQueuePanel),
+);
+const subscriptionManagementSlot = createLazySlot(() =>
+  import("../subscription-management/SubscriptionManagementPanel").then((m) => m.SubscriptionManagementPanel),
+);
 
 const ALL_PANEL_SLOTS: Array<LazySlot<unknown>> = [
   governanceSlot,
@@ -125,11 +132,13 @@ const ALL_PANEL_SLOTS: Array<LazySlot<unknown>> = [
   agentMarketSlot,
   toolMarketSlot,
   knowledgeBaseSlot,
+  approvalQueueSlot,
+  subscriptionManagementSlot,
   devSubmitSlot,
   devReviewSlot,
 ];
 
-// 测试环境模块作用域预热（B2-C2）：18 槽即刻 kick——mock/已缓存模块在 import 期
+// 测试环境模块作用域预热（B2-C2）：20 槽即刻 kick——mock/已缓存模块在 import 期
 // 微任务内解析，使既有同步断言（AdminConsole.market.test TC-ACM-02/03/04）首渲
 // 即命中 resolved 槽。生产构建该分支被静态替换剔除（"production" === "test" 恒
 // 假，死代码消除），运行时零开销；生产按需 kick，与测试同一代码路径，仅数据
@@ -142,7 +151,8 @@ if (import.meta.env.MODE === "test") {
 
 // -----------------------------------------------------------------------------
 // 菜单定义：MenuKey/MenuItem/MENU_ITEMS/MENU_GROUPS 已提取至 menuConfig.ts
-// （B2-C1 单一来源共享——router 运行时读 MENU_ITEMS 防漂移；18 项 id 零变化 GK-14）
+// （B2-C1 单一来源共享——router 运行时读 MENU_ITEMS 防漂移；GK-14 提取时
+// 18 项 id 零变化；B16 增「运营与审批」组 approval_queue / subscription_management）
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
@@ -249,6 +259,15 @@ function renderPanel(key: MenuKey, onApplyTemplate?: OnApplyTemplate): JSX.Eleme
       return <LazyPanel slot={toolMarketSlot} render={(Panel) => <Panel />} />;
     case 'knowledge_base':
       return <LazyPanel slot={knowledgeBaseSlot} render={(Panel) => <Panel />} />;
+    case 'approval_queue':
+      return (
+        <LazyPanel
+          slot={approvalQueueSlot}
+          render={(Panel) => <Panel actorId={DEFAULT_USER_ID} />}
+        />
+      );
+    case 'subscription_management':
+      return <LazyPanel slot={subscriptionManagementSlot} render={(Panel) => <Panel />} />;
     case 'dev_submit':
       return (
         <LazyPanel

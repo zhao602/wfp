@@ -145,6 +145,16 @@ class InstanceRegistry:
         rt = self.get(instance_id)
         return list(rt.events)
 
+    def list_by_status(self, status: str) -> List[InstanceRuntime]:
+        """按状态列举实例运行时（B16 F4 审批队列扫描）。
+
+        审批队列（GET /api/v1/approvals）的进程内数据源：全量扫描
+        _instances 过滤目标状态；运营规模（内存注册表）可接受。
+        """
+        return [
+            rt for rt in self._instances.values() if rt.status == status
+        ]
+
     def count_active_by_tenant(self, tenant_id: str) -> int:
         """统计租户当前并发活跃实例数（非终态计数，roadmap B4 D1 口径）。
 
@@ -703,17 +713,27 @@ async def _publish_instance_domain_event(
     构造/发布异常独立吞掉并记录告警，绝不影响执行主链（INV-01）。
     发布器经 bind_domain_event_publisher_source 绑定的读取源在调用期解析
     （M1：状态持有方为 router 模块，monkeypatch 语义保持）。
+    B16 F5 订阅版本钉住（design D5）：instance.* 载荷单点富化
+    definition_id/definition_version（rt 运行时字段；setdefault 不覆盖
+    调用方显式键）——出口 worker 版本钉住匹配的事件侧来源。
     """
     publisher = _current_domain_event_publisher()
     if publisher is None:
         return
+    enriched_payload = dict(payload)
+    if rt.definition_id:
+        enriched_payload.setdefault("definition_id", rt.definition_id)
+    if rt.definition_version is not None:
+        enriched_payload.setdefault(
+            "definition_version", rt.definition_version
+        )
     try:
         event = DomainEvent(
             event_type=event_type,
             instance_id=rt.instance_id,
             tenant_id=rt.tenant_id or DEFAULT_TENANT_ID,
             trace_id=trace_id,
-            payload=payload,
+            payload=enriched_payload,
         )
     except Exception:
         logging.warning(
@@ -910,6 +930,9 @@ async def run_and_record(
                 "next_node_id": signal.next_node_id,
                 "review_instructions": signal.review_instructions,
                 "timeout_action": signal.timeout_action,
+                # B16 F4 审批队列：挂起时刻显式随行（worker 持久化事件
+                # 的 deadline 计算源；读侧存量事件 occurred_at 兜底）
+                "suspended_at": datetime.now(timezone.utc).isoformat(),
             },
         })
         # 领域事件：实例挂起发布（CHG-62/DC-23 发布点 P4；载荷键对齐 design

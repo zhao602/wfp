@@ -12,7 +12,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from orchestration_platform.domain.models.domain_event import summarize_text
 
@@ -22,7 +22,15 @@ def _utc_now() -> datetime:
 
 
 class WebhookSubscription(BaseModel):
-    """Webhook 订阅（注册表条目；subscription_id 由调用方提供，upsert 语义）。"""
+    """Webhook 订阅（注册表条目；subscription_id 由调用方提供，upsert 语义）。
+
+    版本钉住（B16 F5，design D5）：definition_id/definition_version 可选
+    钉住——皆空匹配全部（向后兼容）；definition_id 非空时要求事件载荷
+    definition_id 相等，definition_version 再要求载荷版本相等；
+    definition_version 无 definition_id 即校验拒绝（钉版本必先钉定义）。
+    密钥轮换（design D6）：secret_version 自 1 起轮换递增、rotated_at
+    记最近轮换时刻（未轮换 None）。
+    """
 
     subscription_id: str = Field(description="订阅标识（调用方提供，upsert 主键）")
     tenant_id: str = Field(description="租户标识（与事件 tenant_id 相等才投递）")
@@ -32,9 +40,24 @@ class WebhookSubscription(BaseModel):
         default_factory=list,
         description='事件类型过滤：空=全部；以 "." 结尾=前缀通配（如 "node."）；否则精确匹配',
     )
+    definition_id: Optional[str] = Field(
+        default=None,
+        description="定义钉住（None=匹配全部；非空要求事件载荷 definition_id 相等）",
+    )
+    definition_version: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="版本钉住（definition_id 非空时生效；载荷版本相等才投递）",
+    )
     enabled: bool = Field(default=True, description="是否启用（停用即不投递）")
     description: str = Field(default="", description="订阅描述")
+    secret_version: int = Field(
+        default=1, ge=1, description="密钥版本（轮换递增，D6）"
+    )
     created_at: datetime = Field(default_factory=_utc_now, description="创建时间")
+    rotated_at: Optional[datetime] = Field(
+        default=None, description="最近密钥轮换时间（未轮换 None）"
+    )
 
     @field_validator("subscription_id", "tenant_id", "secret")
     @classmethod
@@ -42,6 +65,21 @@ class WebhookSubscription(BaseModel):
         if not value or not value.strip():
             raise ValueError("标识/密钥字段不能为空")
         return value.strip()
+
+    @field_validator("definition_id")
+    @classmethod
+    def _normalize_definition_id(cls, value: Optional[str]) -> Optional[str]:
+        """空串归一为 None（未钉住）；非空去空白。"""
+        if value is None or not value.strip():
+            return None
+        return value.strip()
+
+    @model_validator(mode="after")
+    def _validate_version_requires_definition(self) -> "WebhookSubscription":
+        """钉版本必先钉定义（design D5）；独立防线（路由层 422 映射）。"""
+        if self.definition_version is not None and self.definition_id is None:
+            raise ValueError("definition_version 需与 definition_id 同时提供")
+        return self
 
     @field_validator("url")
     @classmethod

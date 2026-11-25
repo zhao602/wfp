@@ -9,7 +9,7 @@
 #      三禁用面板 JSON；default 为 "[]"；
 #   4. render_backend_env：注册表开关显式 true/false + 合并/重启头注释；
 #      双品牌开关互补（验收①产物断言的数据源）；
-#   5. 注册表交叉核对：menu key ⊆ menuConfig.ts MenuKey（18 项）；
+#   5. 注册表交叉核对：menu key ⊆ menuConfig.ts MenuKey（20 项）；
 #      env flag ⊆ Settings 字段（pydantic model_fields 小写化比对）；
 #   6. validate_brand_menu：真实品牌通过；注册表 menu key 漂移 → 报错；
 #   7. rewrite_title：<title> 改写 + 幂等 + 缺标签报错。
@@ -169,7 +169,7 @@ def test_render_backend_env_complementary_between_brands():
 
 def test_module_registry_menu_keys_subset_of_menu_config():
     menu_keys = read_menu_keys()
-    assert len(menu_keys) == 18
+    assert len(menu_keys) == 20
     for menu_key, _flag in MODULE_REGISTRY.values():
         assert menu_key in menu_keys
 

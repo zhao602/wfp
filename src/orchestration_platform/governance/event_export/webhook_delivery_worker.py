@@ -121,13 +121,30 @@ class WebhookDeliveryWorker:
         return tasks
 
     def _match_subscriptions(self, event: DomainEvent) -> List[WebhookSubscription]:
-        """匹配订阅：enabled + tenant_id 相等 + event_types 过滤。"""
+        """匹配订阅（design D5 顺序）：
+
+        enabled → tenant_id 相等 → definition_id 钉住（事件载荷
+        definition_id 相等；载荷缺失即不匹配）→ definition_version 钉住
+        （载荷版本相等）→ event_types 过滤。皆空钉住=匹配全部（向后兼容）。
+        """
+        payload = event.payload or {}
         matched: List[WebhookSubscription] = []
         for subscription in self._registry.list():
             if not subscription.enabled:
                 continue
             if subscription.tenant_id != event.tenant_id:
                 continue
+            if subscription.definition_id:
+                if str(payload.get("definition_id", "") or "") != subscription.definition_id:
+                    continue
+                if subscription.definition_version is not None:
+                    raw_version = payload.get("definition_version")
+                    try:
+                        version_value = int(raw_version)  # type: ignore[arg-type]
+                    except (TypeError, ValueError):
+                        continue
+                    if version_value != subscription.definition_version:
+                        continue
             if not event_type_matches(subscription.event_types, event.event_type):
                 continue
             matched.append(subscription)

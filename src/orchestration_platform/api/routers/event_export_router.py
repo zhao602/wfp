@@ -114,6 +114,14 @@ class SubscriptionBody(BaseModel):
         default_factory=list,
         description='事件类型过滤（空=全部；以 "." 结尾=前缀通配，如 "node."）',
     )
+    definition_id: Optional[str] = Field(
+        default=None,
+        description="定义钉住（None=匹配全部；B16 F5，design D5）",
+    )
+    definition_version: Optional[int] = Field(
+        default=None,
+        description="版本钉住（需与 definition_id 同时提供）",
+    )
     enabled: bool = Field(default=True, description="是否启用")
     description: str = Field(default="", description="订阅描述")
 
@@ -155,10 +163,13 @@ async def register_subscription(body: SubscriptionBody) -> dict:
     except ValidationError as exc:
         errors = exc.errors()
         first = errors[0] if errors else {}
+        loc = first.get("loc", ("?",))
+        # 模型级校验器错误 loc 为空元组（非字段错误）——取 "?" 兜底
+        field = str(loc[0]) if loc else "?"
         raise WorkflowValidationError(
             code=EVENT_SUBSCRIPTION_INVALID,
             message=f"订阅校验失败: {first.get('msg', 'invalid')}",
-            details={"field": str(first.get("loc", ("?",))[0])},
+            details={"field": field},
         )
     registered = registry.register(subscription)
     return _serialize_subscription(registered)
@@ -207,6 +218,25 @@ async def disable_subscription(subscription_id: str) -> dict:
     registry = _require_registry()
     _subscription_or_404(registry, subscription_id)
     return _serialize_subscription(registry.disable(subscription_id))
+
+
+@router.post("/event-export/subscriptions/{subscription_id}:rotate-secret")
+async def rotate_subscription_secret(subscription_id: str) -> dict:
+    """轮换订阅密钥（B16 F5，design D6）：服务端生成、一次性明文回显。
+
+    新密钥即时生效（无双签名宽限，用户裁决 2026-11-25）；
+    secret_version+1、rotated_at 随行；未注册 404。
+    响应 secret 仅本端点回显（一次性展示；其余端点 secret_set 布尔）。
+    """
+    import secrets as _secrets
+
+    registry = _require_registry()
+    _subscription_or_404(registry, subscription_id)
+    new_secret = _secrets.token_urlsafe(32)
+    rotated = registry.rotate_secret(subscription_id, new_secret)
+    data = _serialize_subscription(rotated)
+    data["secret"] = new_secret
+    return data
 
 
 @router.get("/event-export/subscriptions/{subscription_id}/deliveries")

@@ -126,6 +126,14 @@ class IEventRepository(Protocol):
         """
         ...
 
+    async def list_instance_ids(self) -> List[str]:
+        """列出仓储内出现过事件的全部实例标识（B16 F4 审批队列扫描源）。
+
+        顺序不保证；跨实例查询为运营面（队列/审计）专用——
+        业务读路径仍走 list_for_instance（实例内视图）。
+        """
+        ...
+
     async def void_after(self, instance_id: str, sequence: int) -> int:
         """将指定实例中 sequence 大于给定值的事件批量标记为 voided=True。
 

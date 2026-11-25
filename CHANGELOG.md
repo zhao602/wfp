@@ -299,6 +299,54 @@
   B14（3f2a489）于本批收口期间并行提交，本批提交叠其上；join 三字段
   回退后 `test_parallel_fanout_compile.py` 14/14 恢复绿。
 
+### B16 运营面批（F4+F5）
+
+- **F4 审批运营面（后端）**：`approval_queue_service.py`（waiting_review
+  跨实例聚合：双模式数据源——进程内注册表 `list_by_status` + 事件仓储
+  读穿透 `list_instance_ids` 去重合并；worker 行经
+  `derive_instance_snapshot_from_events` 快照推导；suspended_at 双源兜底：
+  载荷显式键 → occurred_at；deadline = suspended_at +
+  review_timeout_seconds 纯展示）+ `approval_router.py`（GET `/approvals`
+  + POST `/approvals/batch-review` 批量复核——逐项复用既有 `submit_review`
+  零分叉，409/404/422→skipped、5xx→error、成功→ok 三态汇总；actor 必填
+  422）+ 事件仓储 `list_instance_ids` 抽象 local_file/PG 双实现 +
+  INSTANCE_SUSPENDED 载荷补 timeout_action/suspended_at 显式键。
+- **F4 审批运营面（前端）**：`web/src/approval-queue/`
+  （ApprovalQueuePanel——5s 自动刷新 + 1s 走秒倒计时、超时红标「已超时」、
+  剩余 ≤60s 红色预警、批量三决策（通过/驳回/按超时动作）+ 备注、窄屏表格
+  横滚、暗色主题）；菜单 18→20 项（新组「运营与审批」，前端 6 处 +
+  `test_build_oem.py` Python 侧 1 处守卫计数同步）。
+- **F5 订阅管理面**：`web/src/subscription-management/`
+  （SubscriptionManagementPanel——订阅 CRUD upsert 表单/启停/投递日志展开/
+  死信队列 + 逐条重投（redelivered=false 留队提示）/轮换一次性明文弹窗/
+  版本钉住前置校验（钉版本必先钉定义）；9 端点 client）+ `:rotate-secret`
+  端点（服务端 token_urlsafe(32) 生成 + 一次性明文回显）+
+  WebhookSubscription +4 字段（definition_id/definition_version/
+  secret_version/rotated_at）+ 订阅版本钉住匹配（enabled→tenant→定义钉住→
+  版本钉住→event_types）+ `instance.*` 载荷单点富化 definition_id/version。
+- **e2e 扩充**：`08-approval-queue.spec.ts`（人工审核三节点流挂起 →
+  `#/admin/approval_queue` 深链行断言（复核说明/剩余时限/超时动作徽标）→
+  单条「通过」→ succeeded；「全选当页」+「驳回」→ cancelled——reject
+  映射取消口径）；`09-subscription-management.spec.ts`（与 04 的 D1 缺陷
+  锁定严格区分：API 探针建订 + UI 表单建订 → 轮换 → 画布触发
+  instance.succeeded → 投递失败 → 实例锚定死信等待 → 重投仍失败留队 →
+  UI/API 删除收口）；playwright config 后端 env +6 键
+  （EVENT_EXPORT_ENABLED/API_ENABLED/PERSIST_PATH +
+  **EVENT_BUS_PUBLISH_ENABLED**——缺此键发布器不装配、事件不上总线，
+  09 首跑零死信根因 + 重试调优 2 键：MAX_ATTEMPTS=2/BACKOFF_BASE=0.5）；
+  新 spec 连续 2 轮全绿 + 全量 10 spec **11 passed（28.5s）**。
+- **门禁基线（本批实测，锚 3c1b4f1）**：全量 pytest **3956 passed + 3
+  skipped = 3959 collected / 0 failed exit 0**（collect 3899→3959/226
+  文件：T1 +25 单测 +8 集成、T2 +27）；vitest **1061 passed + 13 skipped
+  （131 文件）**（基线 1046+13，T3 +7、T4 +8）；typecheck **0 errors
+  （tsc EXIT=0）**；e2e **11/11**；契约：openapi_v1.json 有意 regen
+  **126→129**（/approvals、/approvals/batch-review、:rotate-secret 加性）+
+  contract_surfaces.json 零变化（129 路径 / SDK 8 / web 23 /
+  apiTypes 25·31）；ruff 本批 19 个 py 文件零违规；run_local_ci ALL
+  PASS；**版本维持 0.3.0**（semver 升位与发布窗合并处理）。B15 滞留
+  工作树三件（Dockerfile digest 锁定/docker-compose/.dockerignore）经
+  用户裁决先行单独收口提交（`742d570`）。
+
 ---
 
 ## [0.3.0] - 2026-11-23

@@ -935,6 +935,9 @@ async def recover_instance(instance_id: str) -> dict:
                     getattr(gate_config, "review_timeout_action", None) or ""
                 ),
                 "recovered": True,
+                # B16 F4 审批队列：挂起时刻显式随行（与 run_and_record
+                # 挂起落点同构；读侧存量事件 occurred_at 兜底）
+                "suspended_at": datetime.now(timezone.utc).isoformat(),
             },
         })
         return {

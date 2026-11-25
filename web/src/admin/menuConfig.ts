@@ -2,11 +2,13 @@
 // 管理后台菜单配置（src/admin/menuConfig.ts，B2-C1/DC-07 提取）
 //
 // 职责：MenuKey/MenuItem/ALL_MENU_ITEMS/MENU_ITEMS/MENU_GROUPS 单一来源——自 AdminConsole.tsx
-// 原样提取（18 项 id 零变化，GK-14）；router 与 AdminConsole 共享，
+// 原样提取（B2-C1 时 18 项 id 零变化，GK-14）；B16 新增「运营与审批」组
+// （approval_queue F4 审批运营面 / subscription_management F5 订阅管理面）；
+// router 与 AdminConsole 共享，
 // 合法面板 id 集合运行时读 MENU_ITEMS（不复制清单——防漂移，DC-B2-01 ②）。
 // OEM 构建期过滤（roadmap B5）：VITE_OEM_DISABLED_PANELS 由 scripts/build_oem.py
 // 构建期烘焙禁用面板清单，MENU_ITEMS = 全量减禁用（菜单不渲染 + 深链
-// not-found；默认无 env → 18 项零变化）。
+// not-found；默认无 env → 20 项全显）。
 // =============================================================================
 
 export type MenuKey =
@@ -27,12 +29,14 @@ export type MenuKey =
   | 'tool_market'
   | 'knowledge_base'
   | 'dev_submit'
-  | 'dev_review';
+  | 'dev_review'
+  | 'approval_queue'
+  | 'subscription_management';
 
 export interface MenuItem {
   key: MenuKey;
   label: string;
-  group: '画布与编排' | '安全与合规' | '生态与扩展' | '评估与发现';
+  group: '画布与编排' | '安全与合规' | '生态与扩展' | '评估与发现' | '运营与审批';
 }
 
 export const ALL_MENU_ITEMS: MenuItem[] = [
@@ -54,6 +58,8 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
   { key: 'knowledge_base', label: '向量知识库管理', group: '生态与扩展' },
   { key: 'dev_submit', label: '开发包提交向导', group: '生态与扩展' },
   { key: 'dev_review', label: '开发包审核台', group: '生态与扩展' },
+  { key: 'approval_queue', label: '审批队列', group: '运营与审批' },
+  { key: 'subscription_management', label: '订阅管理', group: '运营与审批' },
 ];
 
 /**
@@ -96,7 +102,7 @@ const FILTERED_MENU_ITEMS: MenuItem[] = ALL_MENU_ITEMS.filter((item) => !DISABLE
 
 /**
  * 合法菜单项（OEM 构建期过滤出口，roadmap B5）：
- * 默认无 env → 等于全量 18 项（hashRouter/AdminConsole 零改动语义）；
+ * 默认无 env → 等于全量 20 项（hashRouter/AdminConsole 零改动语义）；
  * 禁用后过滤为空 → 回落全量（防 hashRouter DEFAULT_ADMIN_PANEL =
  * MENU_ITEMS[0].key 越界；build_oem.py 构建期亦校验剩余 ≥1）。
  */
@@ -108,4 +114,5 @@ export const MENU_GROUPS: MenuItem['group'][] = [
   '安全与合规',
   '生态与扩展',
   '评估与发现',
+  '运营与审批',
 ];

@@ -98,6 +98,16 @@ class LocalFileEventRepository:
         events.sort(key=lambda e: e.sequence)
         return events
 
+    async def list_instance_ids(self) -> List[str]:
+        """列出有事件目录的全部实例标识（B16 F4 审批队列扫描源）。"""
+        if not self._base_dir.exists():
+            return []
+        return [
+            entry.name
+            for entry in self._base_dir.iterdir()
+            if entry.is_dir() and self._events_file(entry.name).exists()
+        ]
+
     async def void_after(self, instance_id: str, sequence: int) -> int:
         """将 sequence 大于给定值的事件批量标记为 voided=True。
 

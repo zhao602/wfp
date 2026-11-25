@@ -125,12 +125,16 @@ class PersistingInstanceRegistry(InstanceRegistry):
                 payload = dict(event.get("payload") or {})
                 # 实例级事件富化 definition_id（读穿透快照字段；PG 读侧
                 # payload 既有丢失 → 该字段 local_file 后端可靠，deploy.md 口径）
+                # + tenant_id（B16 F4：worker 模式审批队列行的租户提取源；
+                # ExecutionEvent 模型无租户字段，载荷富化为唯一通道）
                 if mapped in self._INSTANCE_EVENT_MAP.values():
                     rt = self._instances.get(instance_id)
                     if rt is not None:
                         payload.setdefault(
                             "definition_id", rt.definition_id or ""
                         )
+                        if rt.tenant_id:
+                            payload.setdefault("tenant_id", rt.tenant_id)
                 await self._event_repo.append(
                     ExecutionEvent(
                         event_id=str(

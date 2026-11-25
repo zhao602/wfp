@@ -309,6 +309,99 @@ class TestSubscriptionCrud:
         )
         assert response.status_code == 422, "缺必填字段 422"
 
+        # B16 F5（design D5）：钉版本无定义 422（模型级防线经路由映射）
+        response = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions",
+            {
+                "subscription_id": "sub-version-only",
+                "tenant_id": "tenant-1",
+                "url": "http://receiver.example/hook",
+                "secret": "s3cret",
+                "definition_version": 3,
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["code"] == "EVENT_SUBSCRIPTION_INVALID"
+
+    async def test_version_pinning_fields_round_trip(self, app_export_on):
+        """B16 F5：definition_id/definition_version 钉住字段注册与查询随行。"""
+        response = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions",
+            {
+                "subscription_id": "sub-pinned",
+                "tenant_id": "tenant-1",
+                "url": "http://receiver.example/hook",
+                "secret": "s3cret",
+                "definition_id": "flow_x",
+                "definition_version": 3,
+            },
+        )
+        assert response.status_code == 200
+        created = response.json()
+        assert created["definition_id"] == "flow_x"
+        assert created["definition_version"] == 3
+        assert created["secret_version"] == 1
+        assert created["rotated_at"] is None
+
+    async def test_rotate_secret_one_time_reveal(self, app_export_on):
+        """B16 F5（design D6）：服务端生成 + 一次性明文回显 + 版本递增。"""
+        create = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions",
+            {
+                "subscription_id": "sub-rot",
+                "tenant_id": "tenant-1",
+                "url": "http://receiver.example/hook",
+                "secret": "s3cret",
+            },
+        )
+        assert create.status_code == 200
+
+        rotate = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions/sub-rot:rotate-secret",
+        )
+        assert rotate.status_code == 200
+        rotated = rotate.json()
+        assert rotated["secret_version"] == 2
+        assert rotated["rotated_at"] is not None
+        assert rotated["secret"], "一次性明文回显（仅本端点）"
+        assert rotated["secret"] != "s3cret"
+
+        # 二次轮换：版本递进、密钥再生
+        rotate_again = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions/sub-rot:rotate-secret",
+        )
+        assert rotate_again.json()["secret_version"] == 3
+        assert rotate_again.json()["secret"] != rotated["secret"]
+
+        # 其余端点不回显 secret（secret_set 布尔，线级契约）
+        fetched = await _request(
+            app_export_on,
+            "GET",
+            "/api/v1/event-export/subscriptions/sub-rot",
+        )
+        assert "secret" not in fetched.json()
+        assert fetched.json()["secret_set"] is True
+        assert fetched.json()["secret_version"] == 3
+
+        # 未注册 404
+        missing = await _request(
+            app_export_on,
+            "POST",
+            "/api/v1/event-export/subscriptions/no-such:rotate-secret",
+        )
+        assert missing.status_code == 404
+        assert missing.json()["code"] == "EVENT_SUBSCRIPTION_NOT_FOUND"
+
     async def test_enable_disable_colon_paths(self, app_export_on):
         body = {
             "subscription_id": "sub-toggle",

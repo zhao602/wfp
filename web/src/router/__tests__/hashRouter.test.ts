@@ -40,8 +40,8 @@ describe("hashRouter 纯函数", () => {
       });
     });
 
-    it("MENU_ITEMS 全部 18 项 id 均可深链解析（防漂移）", () => {
-      expect(MENU_ITEMS).toHaveLength(18);
+    it("MENU_ITEMS 全部 20 项 id 均可深链解析（防漂移）", () => {
+      expect(MENU_ITEMS).toHaveLength(20);
       for (const item of MENU_ITEMS) {
         expect(parseHash(`#/admin/${item.key}`)).toEqual({
           view: "admin",

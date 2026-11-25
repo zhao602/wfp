@@ -45,6 +45,16 @@ export default defineConfig({
         STORAGE_BACKEND: "local_file",
         LOCAL_STORAGE_ROOT: path.join(e2eTmp, "data"),
         LOG_DIR: path.join(e2eTmp, "logs"),
+        // B16 F5 e2e（design D8）：事件导出全链路开启（默认关）+ 订阅持久化
+        // 落 e2e 临时目录（防污染工作区 ./.data）；投递重试 2 次 × 0.5s 退避
+        // ——不可达回调快速进死信，缩短 09 用例等待。发布器装配依赖
+        // event_bus_publish_enabled（application_factory G1 双开关，默认关）。
+        EVENT_BUS_PUBLISH_ENABLED: "true",
+        EVENT_EXPORT_ENABLED: "true",
+        EVENT_EXPORT_API_ENABLED: "true",
+        EVENT_EXPORT_SUBSCRIPTIONS_PERSIST_PATH: path.join(e2eTmp, "event_export_subscriptions.json"),
+        EVENT_EXPORT_WEBHOOK_MAX_ATTEMPTS: "2",
+        EVENT_EXPORT_WEBHOOK_BACKOFF_BASE_SECONDS: "0.5",
       },
     },
     {

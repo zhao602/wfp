@@ -124,6 +124,18 @@ class PostgresEventRepository(TenantScopedPostgresRepository):
                 )
         return [self._row_to_event(r) for r in rows]
 
+    async def list_instance_ids(
+        self, tenant_id: Optional[str] = None
+    ) -> List[str]:
+        resolved_tenant = self._resolve_tenant(tenant_id)
+        async with self._tenant_connection(resolved_tenant) as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT instance_id FROM execution_event "
+                "WHERE tenant_id=$1",
+                resolved_tenant,
+            )
+        return [row["instance_id"] for row in rows]
+
     async def void_after(
         self,
         instance_id: str,

@@ -317,6 +317,7 @@ def create_app() -> FastAPI:
     from orchestration_platform.api.routers.mcp_server_router import router as mcp_tools_router
     from orchestration_platform.api.routers.tool_catalog_router import router as tool_catalog_router
     from orchestration_platform.api.routers.model_catalog_router import router as model_catalog_router
+    from orchestration_platform.api.routers.approval_router import router as approval_router
 
     app.include_router(wf_router, prefix="/api/v1")
     app.include_router(inst_router, prefix="/api/v1")
@@ -328,6 +329,9 @@ def create_app() -> FastAPI:
     app.include_router(tool_catalog_router, prefix="/api/v1")
     # 模型候选端点：GET /api/v1/models/available（agent_model_selector DC-01，仅追加注册）
     app.include_router(model_catalog_router, prefix="/api/v1")
+    # 审批运营面端点：GET /api/v1/approvals + POST /api/v1/approvals/batch-review
+    # （B16 F4，核心面无新开关）
+    app.include_router(approval_router, prefix="/api/v1")
 
     # ---------------- 治理路由注册（第三阶段） ----------------
     try:
