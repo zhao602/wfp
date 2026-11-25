@@ -14,13 +14,19 @@
 #   docker compose --env-file .env.production up -d --build
 #   curl http://localhost:8000/healthz
 #
-# 禁试说明：docker compose up 属 N 类禁试（§13.1）；沙箱仅
+# 禁试说明（历史）：docker compose up 曾属 N 类禁试（§13.1）；沙箱仅
 #   docker compose config 语法核对（S）；真实运行移交用户（§8-D5，AC-01）。
+# B15 实测说明（roadmap_b15_delivery_hardening，2026-11-25，用户裁决解除 N 类禁试）：
+#   - 本编排经真实 compose up/healthcheck 验证（隔离项目，构建记录见批次 _drills/）；
+#   - postgres 基础镜像 digest 锁定（provenance：daocloud 显式拉取，内容寻址=官方）；
+#   - api/worker 运行时加固：read_only 根文件系统 + /tmp tmpfs（数据面全走
+#     named volume：api-data/api-logs/postgres-data）。
 # =============================================================================
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # digest 锁：postgres:16-alpine（provenance：daocloud 显式拉取，内容寻址=官方）
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
     restart: unless-stopped
     environment:
       # 凭据经 --env-file 指定的生产模板注入（:? 强制存在，防误用空值起库）
@@ -38,6 +44,10 @@ services:
   api:
     build: .
     restart: unless-stopped
+    # B15 运行时加固：只读根文件系统 + /tmp tmpfs（写入面仅 named volume）
+    read_only: true
+    tmpfs:
+      - /tmp
     env_file:
       - .env.production
     environment:
@@ -72,6 +82,10 @@ services:
   worker:
     build: .
     restart: unless-stopped
+    # B15 运行时加固：与 api 同口径（只读根 + /tmp tmpfs）
+    read_only: true
+    tmpfs:
+      - /tmp
     command: ["python", "-m", "orchestration_platform.worker"]
     env_file:
       - .env.production

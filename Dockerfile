@@ -13,22 +13,34 @@
 #   - 运行时以非 root 用户运行（生产加固）；前端产物置于 /app/web/dist，
 #     由反向代理/网关托管（应用本身不挂载静态目录，deploy.md §前端访问）。
 #
-# 禁试说明：docker build 属 N 类禁试（§13.1），本文件为配置产出物，
-#           仅做三阶段结构静态核对（S）；真实构建移交用户（§8-D5）。
+# 禁试说明（历史）：docker build 曾属 N 类禁试（§13.1），本文件为配置产出物。
+# B15 实测说明（roadmap_b15_delivery_hardening，2026-11-25，用户裁决解除 N 类禁试）：
+#   - 本文件经真实三阶段构建验证（镜像 orchestration-platform:0.3.0；构建记录
+#     与 SBOM/扫描见批次 _drills/ 与 delivery/，出口记录 §门禁）；
+#   - 基础镜像 digest 锁定（供应链锚定）：digest 经 docker.m.daocloud.io 显式
+#     拉取实测后按内容寻址锁定，与 Docker Hub 官方 digest 一致（provenance 注记）；
+#   - 构建上下文白名单排除见 .dockerignore（stage2 宿主 node_modules 覆层修复）。
 # =============================================================================
 
 # ---------- stage1：后端依赖层 ----------
-FROM python:3.10-slim AS backend-deps
+# digest 锁：python:3.10-slim（provenance：daocloud 显式拉取，内容寻址=官方）
+FROM python:3.10-slim@sha256:6ff506466f8b1e981719b468cc0023b8ef000b983cdec0eafe119d01f379e31d AS backend-deps
+
+# B15：pip 源可注入——默认官方源保可移植；网络受限环境经
+# --build-arg PIP_INDEX_URL=<镜像源> 注入（实测口径见批次 drill 记录：
+# 直连 files.pythonhosted.org 读超时，aliyun 镜像实测通过）。
+ARG PIP_INDEX_URL=https://pypi.org/simple
 
 WORKDIR /build
 
 # 先复制依赖声明与包源码，一次性安装（--prefix 便于运行时层整层拷贝）
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir --prefix=/install .
+RUN pip install --no-cache-dir --index-url ${PIP_INDEX_URL} --prefix=/install .
 
 # ---------- stage2：前端构建层 ----------
-FROM node:20-slim AS frontend-build
+# digest 锁：node:20-slim（provenance：daocloud 显式拉取，内容寻址=官方）
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS frontend-build
 
 WORKDIR /web
 
@@ -40,7 +52,8 @@ COPY web/ ./
 RUN npm run build
 
 # ---------- stage3：运行时合并层 ----------
-FROM python:3.10-slim AS runtime
+# digest 锁：与 stage1 同源同版（python:3.10-slim）
+FROM python:3.10-slim@sha256:6ff506466f8b1e981719b468cc0023b8ef000b983cdec0eafe119d01f379e31d AS runtime
 
 # 非特权运行用户
 RUN useradd --create-home --shell /usr/sbin/nologin appuser

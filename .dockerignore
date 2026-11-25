@@ -1,0 +1,68 @@
+# =============================================================================
+# .dockerignore（B15 S3，roadmap_b15_delivery_hardening design D1）
+#
+# 构建上下文瘦身 + 正确性修复：
+#   - 正确性：stage2 `COPY web/ ./` 会把宿主 web/node_modules（Windows 平台二进制）
+#     覆层进容器 npm ci 结果之上——排除后 stage2 依赖以容器内 npm ci 为准；
+#   - 安全（HC-08）：.env*、.data、logs 等敏感与本地数据绝不进上下文与镜像；
+#   - 瘦身：未被任何 COPY 引用的目录排除 = 纯上下文瘦身，不影响产物。
+#     COPY 面核账（对照 Dockerfile）：
+#       stage1 COPY pyproject.toml README.md ./   + COPY src ./src
+#       stage2 COPY web/package.json web/package-lock.json ./ + COPY web/ ./
+#       stage3 COPY --from=...（跨阶段，不受上下文影响）
+# =============================================================================
+
+# 版本控制与本地工具目录
+.git
+.gitignore
+.gitattributes
+.codeartsdoer
+.deveco
+.arts
+.slidep
+.workbuddy
+.vscode
+.npm-cache
+.pytest_cache
+.ruff_cache
+__pycache__
+
+# CI 配置（构建不需要；ci.yml 变更走 git，不进镜像）
+.github
+
+# 敏感与本地数据（HC-08；任何深度不入场）
+**/.env
+**/.env.*
+
+# 本地运行数据与日志（运行期经 named volume 挂载，非镜像内容）
+.data
+logs
+output
+
+# B15 运维产物目录（离线包/备份；由打包脚本宿主侧生成）
+delivery
+backups
+
+# 源码树中不被 COPY 的顶层目录（stage1 仅需 pyproject/README/src）
+tests
+docs
+examples
+scripts
+sdk
+oem
+
+# Python 冗余
+**/__pycache__
+**/*.pyc
+
+# 前端冗余（web/ 本体保留——stage2 COPY web/ 需要；以下为宿主依赖与产物）
+web/node_modules
+web/dist
+web/coverage
+web/test-results
+web/playwright-report
+web/e2e-results
+web/.vite
+
+# 通用
+**/.DS_Store
