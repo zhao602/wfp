@@ -237,6 +237,6 @@ T1 独立；A5 独立；S2 独立（可随时插入）
 | 工程设施 | CI（ruff + pytest + tsc + vitest + 范例校验）、`wfp-check`、Dockerfile、compose、**Playwright e2e 套件（B8d）**、性能基准脚本（B8c） | `.github/workflows/`、`web/playwright.config.ts`、`scripts/perf/` |
 | 性能基线 | linear_50 p95=21759.9ms / parallel_8 p95=15872.8ms / pipeline_100k p95=27281.2ms·峰值 247.8MB / sse_1000 p95=85.3ms | `docs/benchmark.md`（B8c 实测） |
 | 已知缺陷登记 | D1 订阅管理器全运行时未装配（`/subscriptions` 恒 503，e2e 缺陷断言锁定）；D2 StrictMode dev 持久化坏死（B8d 已修复） | B8d exit-record §4 |
-| 缺失项 | CI 凭据（PyPI 发布同批移交）；`/metrics` 仍为 JSON | 实测（2026-11-26 复核：git remote 已配置（origin=github.com/zhao602/wfp-orchestration），原「无 remote」过时；CI/PyPI 凭据仍缺） |
+| 缺失项 | CI 凭据（PyPI 发布同批移交）；`/metrics` 仍为 JSON | 实测（2026-11-26 复核：git remote 已配置（origin=github.com/zhao602/wfp，仓库由 wfp-orchestration 更名、旧 URL 重定向），原「无 remote」过时；CI/PyPI 凭据仍缺） |
 
 > 说明：B7/B8a–B8e 已全部收口落 `main`（短期池清空，B8e 提交哈希见其出口记录）；B9-M1（执行队列与统一提交路径）已先行落库 `d2058a6`（2026-11-23 并行会话）；测试数以当次全量复测为准。
