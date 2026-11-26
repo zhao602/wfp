@@ -76,6 +76,15 @@ wfp = "orchestration_platform.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# B15：包数据随包分发（2026-11-25 compose drill 实证：setuptools 默认仅打包 .py，
+# .sql/.json 被静默丢弃——镜像内建库 SQL 消失、无法自举 schema，补此段收编）：
+#   - postgres schema：table_definitions.sql + schema_migrations/*.sql（README 一并随包，
+#     容器内可读迁移程序说明）；
+#   - yaml_schema：workflow YAML 的 JSON Schema 规格工件（运行时未加载，随包供工具链校验）。
+[tool.setuptools.package-data]
+"orchestration_platform.persistence.postgres" = ["*.sql", "schema_migrations/*.sql", "schema_migrations/README.md"]
+"orchestration_platform.workflow.yaml_schema" = ["*.json"]
+
 [tool.pytest.ini_options]
 # 测试路径与异步模式：asyncio_mode=auto 使 async 测试函数无需显式标记
 testpaths = ["tests"]

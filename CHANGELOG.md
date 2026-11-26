@@ -347,6 +347,52 @@
   工作树三件（Dockerfile digest 锁定/docker-compose/.dockerignore）经
   用户裁决先行单独收口提交（`742d570`）。
 
+### B15 交付加固批（S3+S4+S5）
+
+- **S3 镜像供应链**：基础镜像 digest 四锁（python:3.10-slim /
+  node:20-slim / alpine:3.20 / postgres:16-alpine，Dockerfile 三件已随
+  `742d570` 先行收口）；`.dockerignore` 构建上下文白名单；只读根文件
+  系统 + tmpfs；供应链缺口四连抓修——①postgres extra 未装（worker 必
+  崩）②compose build 默认源不可用（PIP 源可注入）③setuptools 丢弃非
+  .py 包数据（镜像无 schema 无法自举建库）④compose 双 env 通道裂脑
+  （端口绑定静默回落）；SBOM（syft 1.18.0，176 包）与 trivy v0.76.2
+  扫描基线（HIGH=61 / CRITICAL=0 / 自研层 0，登记基线非零门禁）入
+  ci.yml docker job；镜像 237870121B，JWT 冒烟 wf_rows=1。
+- **S4 备份恢复**：`scripts/ops/backup.py`（pg_dump -Fc + 卷 tar
+  stdout 管道免宿主 bind mount + manifest schema=backup-manifest/1 +
+  SHA256SUMS 全量校验 + `--keep N` 滚动留存）；`scripts/ops/restore.py`
+  （校验和 → 项目一致性闸 → compose down → stdin 解回卷 → pg_restore
+  --clean --if-exists → healthz `ProxyHandler({})` 直连探活 → RTO 分项
+  计时，`--confirm` 强制确认）；v1_10 迁移 up→down→up 双向幂等实证
+  （回滚列 0/索引 0/行 2/登记 10 → re-apply 回填 draft=数据警告实证）；
+  **同版本 re-publish 静默 no-op 陷阱入 runbook**（幂等检查读 body 残留
+  published 态 → 返回旧 published_at 不落库，恢复发布态须新版本
+  save+publish 实证收敛）；全灭态恢复 RTO 17.6s（分项 pg 8.3 / 卷 2.8 /
+  healthz 3.2 / up 1.6 / DB 1.2 / down 0.5），恢复后逐位一致（v3
+  published pub_at 微秒级回放、schema_versions=10）；kill-9 双记录核对
+  PASS。
+- **S5 离线交付**：`scripts/ops/package_offline.py`（manifest
+  schema=offline-package-manifest/1 无时间戳可复现；9 单测
+  `tests/unit/test_offline_package_manifest.py`）；终包 offline-0.3.0 =
+  67 文件 / 556.9MB（app.tar + postgres.tar + wheels `.[postgres,sso]`
+  manylinux2014_x86_64 + SBOM + compose/.env 模板 + install-offline.sh）；
+  缺口①docker save/load 不恢复 RepoDigests → install 脚本
+  strip_digest_pins 兼容；缺口②目标机 client proxies 劫持探活（43 连
+  败）→ compose healthcheck `ProxyHandler({})` 直连 + 镜像内 curl
+  --noproxy '*'；零 pull 三层论证；离线从零到可用 drill Run C
+  [1/6]–[6/6] 全绿（`_drills/b15_offline_drill.md`）。
+- **文档与交付件**：`docs/deploy.md` §8 移交实测清单回填 + §11 备份与
+  恢复 + §12 升级 runbook（§12.2 v1_10 no-op 陷阱）；
+  `docs/offline-delivery.md` 新篇；drill 记录三份（S3 docker build /
+  S5 offline / S4 restore）入 `_drills/`；`.gitignore` + delivery/ +
+  backups/。
+- **门禁**：隔离 worktree 权威口径（HEAD `3c1b4f1` + B15 全集）：pytest
+  **3905 passed + 3 skipped = 3908** 零失败（vs T0 基线 3899 精确对账
+  diff 恰 +9，全部为新测试文件）/ vitest 1046+13（129 文件）/ tsc 0 /
+  e2e 8/8 / 契约 snapshot 零漂移（openapi 126 / SDK 8 / web 23·23 /
+  apiTypes 25·31）/ run_local_ci ALL PASS / ruff 全仓 0 违规；**版本
+  维持 0.3.0**（交付面加固，无 API 变更）。
+
 ---
 
 ## [0.3.0] - 2026-11-23

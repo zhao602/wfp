@@ -112,15 +112,16 @@ compose 栈内 `api` 服务只提供 API（`:8000`）。前端为纯静态产物
 
 ---
 
-## 8. 移交实测清单（§8-D5，N/M 类回填）
+## 8. 移交实测清单（§8-D5，N/M 类回填；B15 批内实测回填）
 
-以下项在本轮沙箱按「配置产出 + 静态核对/本地等价脚本」交付（OP-06），**真实环境实测由用户执行并回填结果**：
+原口径：沙箱按「配置产出 + 静态核对/本地等价脚本」交付（OP-06），**真实环境实测由用户执行并回填结果**。
+B15 批内解除 docker 类禁试（用户裁决 2026-11-25）后，docker 项已在本沙箱实测并回填如下：
 
 | 项 | 移交内容 | 沙箱已做 |
 | --- | --- | --- |
-| AC-01 陌生人 10 分钟路径 | 按本文 §1 实测 compose up 全栈 + healthz | `docker compose config` 语法核对通过；文档步骤静态核对 |
-| AC-03 CI 绿灯 | 推送仓库观察 GitHub Actions 双 job 绿灯 | ci.yml YAML lint；`scripts/run_local_ci.py` 实测 exit 0（lint 兜底 + pytest 收集 2872 + vitest 单文件） |
-| docker build / compose up | 真实构建与运行 | 禁试清单 §13.1；Dockerfile 三阶段结构静态核对 |
+| AC-01 陌生人 10 分钟路径 | 按本文 §1 实测 compose up 全栈 + healthz | `docker compose config` 语法核对通过；**B15 实测**：compose up 全栈多轮（S5 离线 drill Run C [1/6]–[6/6]、S4 备份恢复 drill），healthz 200 |
+| AC-03 CI 绿灯 | 推送仓库观察 GitHub Actions 双 job 绿灯 | ci.yml YAML lint；**B15 新增 docker job**（构建+SBOM+trivy 基线门禁）；`scripts/run_local_ci.py` 实测 exit 0（lint 兜底 + pytest 收集 2872 + vitest 单文件） |
+| docker build / compose up | 真实构建与运行 | **B15 实测**（禁试已解除）：镜像构建 237870121B、SBOM/trivy 基线过门；离线交付 drill 全绿（`_drills/b15_offline_drill.md`）；备份恢复 drill 全绿（`_drills/b15_restore_drill.md`，全灭态 RTO 17.6s） |
 
 ---
 
@@ -220,3 +221,131 @@ payload 键）；作业 `initial_inputs` JSONB 读侧同步修复（`_decode_jso
 - **旧签名兼容**：未升级的队列实现（双参 `heartbeat`）仍可运行——
   worker 构造期一次签名探测决定调用形态，协议演进不破坏既有部署
   （探测含 `**kwargs` 型实现）。
+
+---
+
+## 11. 备份与恢复（B15 S4，`scripts/ops/backup.py` / `restore.py`）
+
+### 11.1 备份
+
+```bash
+python scripts/ops/backup.py --project <compose项目名> [--keep N]
+# 产出 backups/<UTC时间戳>/：
+#   db.dump          pg_dump -Fc（custom 格式，与 pg_restore 配对）
+#   api-data.tar.gz / api-logs.tar.gz   两卷 tar（alpine:3.20 digest 锁辅助容器）
+#   manifest.json    schema=backup-manifest/1：各件 sha256/尺寸、项目名、
+#                    pg_dump 版本、created_at（备份为时点产物，含时间戳）
+#   SHA256SUMS       全部文件校验和（含 manifest 自身；SHA256SUMS 自身除外）
+```
+
+- **一致性口径**：DB 走逻辑转储（pg_dump），postgres-data 卷**不做**物理备份；
+  api-data/api-logs 卷 tar 物理归档。
+- **实现纪律**：pg_dump/tar 均走容器 stdout 二进制管道落盘，**不做宿主目录
+  bind mount**——`DOCKER_HOST=tcp://…` 裸穿、npipe、Linux 任意拓扑下
+  Windows 风格路径均无翻译保障（B15 实测 `invalid mode: /out` 根因）。
+- `--keep N` 按目录名 UTC 时间戳清理旧备份（缺省不清）。
+
+### 11.2 恢复
+
+```bash
+python scripts/ops/restore.py --from backups/<时间戳> --project <项目名> \
+    --env-file .env.production --confirm
+```
+
+- **双闸**：`--confirm` 必须（缺省仅打印计划）；manifest.project 与
+  `--project` 不一致即中止（防跨项目恢复）；校验和任一坏行即中止。
+- **步骤（各自计时）**：校验和 → compose down（保卷）→ 卷 tar 解回
+  （stdin 管道，清后还原）→ postgres 单服务起 + healthy 闸 →
+  `pg_restore --clean --if-exists` → `up -d --no-build` → healthz 200
+  （探活强制直连 `ProxyHandler({})`，防目标机 docker client 代理劫持，
+  见 §12.5）。
+- **两条恢复路径均覆盖**：既有库（`--clean --if-exists` 按对象替换）与
+  全新库（down -v 后 fresh initdb，pg_restore 全量重建）。
+
+### 11.3 RTO 实测（b15_restore_drill.md，2026-11-25）
+
+全灭态（down -v：容器/网络/三卷全删，等价新机）→ healthz 200：
+
+| 分项 | 实测 |
+| --- | --- |
+| compose down（幂等） | 0.5s |
+| 卷 tar 解回 ×2 | 2.8s |
+| postgres 起 + healthy | 8.3s |
+| pg_restore（--clean --if-exists） | 1.2s |
+| api/worker up --no-build | 1.6s |
+| healthz 200 | 3.2s |
+| **总计** | **17.6s** |
+
+恢复后核验逐位一致：3 版本行（v3 published、published_at 精确到微秒回放）、
+schema_versions=10、API versions 端点与备份前完全相同。
+
+---
+
+## 12. 升级 runbook（B15 S4）
+
+### 12.1 schema 迁移程序（无 python runner，手工 psql=「runner」）
+
+```bash
+# 容器内落地迁移文件后（docker cp 防嵌套路径）：
+psql -v ON_ERROR_STOP=1 -q -f /tmp/schema/table_definitions.sql
+for f in $(ls /tmp/schema/v1_*.sql | grep -v rollback | sort -V); do
+  psql -v ON_ERROR_STOP=1 -q -f $f
+done
+```
+
+- **顺序纪律**：`sort -V` 防字典序（v1_10 < v1_2）；`grep -v rollback`
+  防回滚脚本混入（`v1_*.sql` 通配同时命中 9 个回滚文件）。
+- 迁移清单与「无回滚即不可逆」原则见
+  `src/orchestration_platform/persistence/postgres/schema_migrations/README.md`
+  （v1_4 无回滚；v1_5 不重跑 v1_2）。
+
+### 12.2 v1_10 回滚往返语义（S4 drill 实证，b15_restore_drill.md）
+
+- **回滚**（v1_10_rollback.sql）：DROP INDEX/COLUMN IF EXISTS ×4——
+  列/索引净除、**数据行存活**、schema_versions 登记保留（历史留痕）。
+- **re-apply**（v1_10_workflow_publish_state.sql）：列/索引回建幂等，
+  既有行 status 回填 `'draft'`——**发布态/溯源数据丢失**（脚本头数据警告），
+  schema_versions `ON CONFLICT DO NOTHING`（INSERT 0 0）。
+- **⚠ 同版本 re-publish 静默 no-op 陷阱**：publish 幂等检查读
+  `definition_body` JSON（get 读 body 为权威），回滚+re-apply 后
+  body 残留 `status=published`、列已被重置 `draft` → 对既有版本调
+  publish 返回**旧 published_at 且列不动**（API 面看似成功、
+  `get_published`（列谓词）仍为 None=执行入口解析不到已发布版）。
+  **恢复发布态须走新版本**：save 新版本（v(max+1)，body 为 draft）→
+  publish 该版本 → 列/body 双写收敛（drill 实证 v3：新时间戳、
+  列 published）。
+- **守卫真源分裂说明**：publish 幂等读 body、save 不可变守卫
+  （ON CONFLICT WHERE status<>'published'）读列——两真源在迁移
+  往返后短暂分歧，上述「新版本重发」程序为收敛路径。
+
+### 12.3 镜像与 digest 更新
+
+- 基础镜像 digest 四锁（design D2）：python:3.10-slim / node:20-slim /
+  alpine:3.20 / postgres:16-alpine（全量 sha256 见
+  `docker-compose.yml`、`Dockerfile`、`scripts/ops/*.py` 内引用）。
+- **在线升级**：更新 compose 内 digest → `docker compose pull` →
+  `up -d --no-build` → healthz → 按 §12.1 补迁移。
+- **离线升级**：目标机 `docker load -i images/*.tar`（install-offline.sh
+  已含）→ 替换 compose/manifest → `up -d --no-build`。离线包 compose
+  副本不带 digest 后缀（docker save/load 不恢复 RepoDigests，
+  provenance 由 manifest.json images[].digest + SHA256SUMS 内容锁承载）。
+- compose 文件**不写** `pull_policy: never`（锁死在线升级通道）；
+  离线语义由 install-offline.sh 的 `up --pull never` 携带。
+
+### 12.4 schema 初始化（fresh 部署）
+
+fresh postgres-data 卷首次启动：postgres healthy 后按 §12.1 全量应用
+table_definitions + 10 前向迁移 → `up -d --no-build` 全量起 →
+healthz 200 → 按 §11.3 口径核验 schema_versions=10。
+**未初始化 schema 先起 worker**：`UndefinedTableError: execution_job`
+重启循环为已知态（schema 应用后自愈），非缺陷。
+
+### 12.5 目标机代理陷阱（S5 缺口② 实证）
+
+目标机 docker client 配置（`~/.docker/config.json` proxies 段）会在
+compose up 时向容器**自动注入 http_proxy 系六变量**；容器内
+代理感知客户端访问 `127.0.0.1` 可能被路由至不可达代理（实测
+healthcheck 43 连败假 unhealthy，外探 200）。已有防护：
+compose healthcheck `ProxyHandler({})` 强制直连；install-offline.sh
+curl `--noproxy '*'`。**运维侧**：目标机 noProxy 应含
+`127.0.0.1,localhost`，或清理 client proxies 段。

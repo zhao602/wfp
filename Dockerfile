@@ -8,7 +8,9 @@
 #
 # 口径：
 #   - Python 3.10 基础镜像与项目现状一致（requires-python >=3.10，实测 3.10.20）；
-#   - 依赖清单以 pyproject.toml 为单一事实源（pip install .，零额外锁定文件）；
+#   - 依赖清单以 pyproject.toml 为单一事实源（零额外锁定文件）；安装含
+#     postgres extra（asyncpg——STORAGE_BACKEND=postgres 运行时惰性依赖，
+#     B15 compose drill 实测镜像缺件致 worker 崩溃后补入，2026-11-25）；
 #   - 前端版本以 web/package-lock.json 锁定口径为准（npm ci）；
 #   - 运行时以非 root 用户运行（生产加固）；前端产物置于 /app/web/dist，
 #     由反向代理/网关托管（应用本身不挂载静态目录，deploy.md §前端访问）。
@@ -36,7 +38,10 @@ WORKDIR /build
 # 先复制依赖声明与包源码，一次性安装（--prefix 便于运行时层整层拷贝）
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir --index-url ${PIP_INDEX_URL} --prefix=/install .
+# B15：postgres extra（asyncpg）随主包一并安装——compose 生产路径
+# STORAGE_BACKEND=postgres 的仓储/队列惰性导入依赖；裸 `.` 安装缺件（drill 实测
+# worker ModuleNotFoundError: asyncpg → 修为 '.[postgres]'）。
+RUN pip install --no-cache-dir --index-url ${PIP_INDEX_URL} --prefix=/install '.[postgres]'
 
 # ---------- stage2：前端构建层 ----------
 # digest 锁：node:20-slim（provenance：daocloud 显式拉取，内容寻址=官方）

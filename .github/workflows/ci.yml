@@ -8,7 +8,11 @@
 #   2. frontend job：web/ 下 npm ci + tsc --noEmit + vitest run；
 #   3. examples job：pip install -e . 后 wfp validate examples/（5.7 追加，
 #      15 YAML 全量校验 exit 0，AC-04；G8 产物就绪后合入）；
-#   4. 版本取自 pyproject.toml / package.json 既有声明，不引入新版本约束。
+#   4. 版本取自 pyproject.toml / package.json 既有声明，不引入新版本约束；
+#   5. docker job：B15 S3 交付供应链（design D10）——镜像构建 + syft SBOM
+#      artifact + trivy 扫描 artifact；扫描 continue-on-error 仅留档
+#      （D3 裁决：基线非零门禁），工具版本/DB 源与 drill 实测口径一致
+#      （_drills/b15_s3_docker_build.md §9）。
 #
 # 说明：本文件为配置产出物；真实 CI 绿灯属 N 类禁试移交项（§13.1，AC-03 N 部分）。
 # =============================================================================
@@ -106,3 +110,50 @@ jobs:
       - name: Validate examples
         # 15 个 YAML（12 套范例，E18 glob 口径）全量校验 exit 0（AC-04）
         run: wfp validate examples/
+
+  docker:
+    # B15 S3 交付供应链（design D10）：镜像构建 + SBOM 生成 + 漏洞扫描。
+    # 工具版本与本地 drill 实测一致（syft v1.18.0 / trivy v0.76.2，校验和
+    # 验证记录见 _drills/b15_s3_docker_build.md §9）；扫描结果仅留 artifact，
+    # 基线登记见 _drills/b15_s3_scan_baseline.txt（HIGH=61/CRITICAL=0，
+    # 非零门禁裁决）；真实 CI 绿灯属 N3 移交项不变。
+    name: Docker (build + SBOM + scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        # digest 锁基镜像 + .dockerignore 白名单上下文（B15 S3）；
+        # PIP_INDEX_URL 用 compose/Dockerfile 默认官方源（CI 网络无墙）
+        run: docker build -t orchestration-platform:ci .
+
+      - name: Install syft v1.18.0
+        # 官方安装器 + 版本钉扎（provenance：GitHub Releases 校验和口径）
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin v1.18.0
+
+      - name: Install trivy v0.76.2
+        run: curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.2
+
+      - name: Generate SBOM (SPDX JSON)
+        run: syft orchestration-platform:ci -o spdx-json=sbom-app.spdx.json
+
+      - name: Scan image (trivy)
+        # DB 走 Aqua 官方 ECR 公共画廊（drill 实测可达路径；ghcr 匿名拉取
+        # 部分网络 DENIED）。结果仅留档不阻断（design D3：基线非零门禁）。
+        continue-on-error: true
+        run: trivy image --db-repository public.ecr.aws/aquasecurity/trivy-db:2 --format json --output trivy-app.json orchestration-platform:ci
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-spdx-json
+          path: sbom-app.spdx.json
+
+      - name: Upload scan artifact
+        # 扫描失败（如 DB 不可达）时不上传空件、不阻断流水线
+        if: always() && hashFiles('trivy-app.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-json
+          path: trivy-app.json

@@ -14,6 +14,12 @@
 #   docker compose --env-file .env.production up -d --build
 #   curl http://localhost:8000/healthz
 #
+# B15 裂脑告警（2026-11-25 compose drill 实测）：本文件有两条独立 env 通道——
+#   ① --env-file 喂 ${VAR} 插值（ports/healthcheck）；
+#   ② 各服务 env_file 指令喂容器环境。漏传 --env-file 时②仍生效、①回落
+#   shell/.env 默认（端口 0.0.0.0:8000），形成「容器环境=生产模板、绑定面=
+#   默认」裂脑态——务必带 --env-file .env.production。
+#
 # 禁试说明（历史）：docker compose up 曾属 N 类禁试（§13.1）；沙箱仅
 #   docker compose config 语法核对（S）；真实运行移交用户（§8-D5，AC-01）。
 # B15 实测说明（roadmap_b15_delivery_hardening，2026-11-25，用户裁决解除 N 类禁试）：
@@ -42,7 +48,17 @@ services:
       retries: 12
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        # B15：pip 镜像源注入（默认官方源不变；网络受限环境
+        # export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ 后 build）。
+        # 实测口径：compose build 不传此参 → ARG 默认官方源 → 容器内
+        # files.pythonhosted.org 读超时 exit 1（诊断见批次 drill 记录）。
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    # B15：显式镜像名——compose build 产出稳定 tag；离线流（S5 install-offline.sh
+    # 的 docker load + up --no-build）依赖此名解析，不回退构建。
+    image: orchestration-platform:0.3.0
     restart: unless-stopped
     # B15 运行时加固：只读根文件系统 + /tmp tmpfs（写入面仅 named volume）
     read_only: true
@@ -54,7 +70,10 @@ services:
       # compose 网络内经服务名寻址（覆盖模板中的主机名口径）
       POSTGRES_HOST: postgres
     ports:
-      - "${API_PORT:-8000}:8000"
+      # B15：API_BIND_IP 可选绑定面（默认 0.0.0.0 不变；演练/内网可设 127.0.0.1
+      # 环回）。注意 API_PORT 必须为整数端口（应用 Settings.api_port 同源解析，
+      # 勿填 host:port 复合值）。插值源=--env-file/shell（env_file 指令不供插值）。
+      - "${API_BIND_IP:-0.0.0.0}:${API_PORT:-8000}:8000"
     volumes:
       - api-data:/app/.data
       - api-logs:/app/logs
@@ -62,13 +81,17 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      # 基础镜像无 curl，用标准库探活（/healthz 免鉴权）
+      # 基础镜像无 curl，用标准库探活（/healthz 免鉴权）。
+      # B15 S5 代理免疫（实测）：目标机 docker client 配 proxies（如 WSL
+      # ~/.docker/config.json）会向容器注入 http_proxy——urllib 默认走代理，
+      # 127.0.0.1 不在 noProxy 时探活被劫持成连代理 → 假 unhealthy。
+      # ProxyHandler({}) 强制直连。
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)",
+          "import sys,urllib.request; opener=urllib.request.build_opener(urllib.request.ProxyHandler({})); sys.exit(0 if opener.open('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)",
         ]
       interval: 15s
       timeout: 5s
@@ -80,7 +103,12 @@ services:
   #   本服务认领执行（EXECUTION_MODE 在 .env.production 全局设置，两服务共享）；
   #   无 ports（不直接对外）；kill -9/滚动升级由租约接管兜底（docs/deploy.md §10）。
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        # B15：与 api 同口径（pip 镜像源注入，默认官方源不变）
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    image: orchestration-platform:0.3.0
     restart: unless-stopped
     # B15 运行时加固：与 api 同口径（只读根 + /tmp tmpfs）
     read_only: true

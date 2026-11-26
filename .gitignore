@@ -77,3 +77,8 @@ coverage.xml
 output/
 .merkle-snapshot.json
 DEVELOPMENT.md
+
+# B15 交付产物目录（design D3/D8：SBOM/扫描报告/离线包不入库——
+# 报告摘要数字入 exit-record，重档按需复制 _drills/）
+delivery/
+backups/

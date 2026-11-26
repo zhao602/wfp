@@ -1,0 +1,25 @@
+trivy baseline summary (design D3): artifact=orchestration-platform:0.3.0
+severity totals: HIGH=61, LOW=82, MEDIUM=112, UNKNOWN=21
+CRITICAL distinct CVEs: 0
+HIGH distinct CVEs: 20
+  CVE-2025-69720: libncursesw6, libtinfo6, ncurses-base, ncurses-bin
+  CVE-2026-107494: libssl3t64, openssl, openssl-provider-legacy
+  CVE-2026-109518: apt, libapt-pkg7.0
+  CVE-2026-119373: libsqlite3-0
+  CVE-2026-119374: libsqlite3-0
+  CVE-2026-119379: libsqlite3-0
+  CVE-2026-124709: libssl3t64, openssl, openssl-provider-legacy
+  CVE-2026-124851: libzstd1
+  CVE-2026-16742: libsystemd0, libudev1
+  CVE-2026-23949: jaraco.context
+  CVE-2026-24049: wheel
+  CVE-2026-48818: starlette
+  CVE-2026-54283: starlette
+  CVE-2026-54369: libacl1
+  CVE-2026-76642: bsdutils, libblkid1, liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux
+  CVE-2026-78408: bsdutils, libblkid1, liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux
+  CVE-2026-78409: bsdutils, libblkid1, liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux
+  CVE-2026-78410: bsdutils, libblkid1, liblastlog2-2, libmount1, libsmartcols1, libuuid1, login, mount, util-linux
+  CVE-2026-85091: zlib1g
+  CVE-2026-9538: perl-base
+app-layer (orchestration-platform pkg) findings: 0 []
