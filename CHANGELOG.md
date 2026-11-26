@@ -2,9 +2,13 @@
 
 本文件记录「企业级多Agent工作流编排平台」全部版本的变更历史。 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
+> **版本口径**：本文件只呈现 0.x 一条序列，`pyproject.toml`（根 / SDK / web）与 git tag 同源。
+> 0.1.0 为 2026-09 早期单体验证阶段的里程碑快照（原记 1.1.0–1.4.0，同日出账，已归并）；
+> 此后每次对外交付升一位。下一版本号 **0.4.0**，对应本文「未发布」段。
+
 ---
 
-## [未发布]
+## [0.4.0] - 未发布
 
 ### M4 引擎解耦（B10/A1）
 
@@ -455,9 +459,6 @@
 
 ## [0.2.0] - 2026-11-22
 
-> **版本编号说明**：自 B 网格批次线（2026-11 平台重构）起，版本号以 `pyproject.toml`
-> 的 0.x 线为准；本段之下的 1.x 历史为早期单体阶段存档，与当前版本线不连续。
-
 ### 对外基线（roadmap-v3 B8a，N1/N2/N6）
 
 - **许可证（N1）**：全仓采用 Apache-2.0——`LICENSE` 标准全文落库；根 / SDK
@@ -505,11 +506,11 @@
 
 ---
 
-## [1.4.0] - 2026-09-24
+## [0.1.0] - 2026-09-24
 
-### 新增
+> 早期单体验证阶段。原 1.1.0–1.4.0 为同日记账的里程碑快照，已按 0.x 口径归并；下辖小节保留原始模块粒度。
 
-#### M25 Agent 执行沙箱（T130-T143）
+### M25 Agent 执行沙箱（T130-T143）
 
 - 沙箱策略模型与枚举（`IsolationMode`、`NetworkPolicyMode`、`ViolationType`、`SandboxErrorCode`）
 - 三守卫机制：路径守卫（`PathGuard`）、网络过滤（`NetworkFilter`）、资源计量（`ResourceMeter`）
@@ -521,7 +522,7 @@
 - REST API（`/api/v1/sandbox/policies`、`/api/v1/sandbox/sessions`）
 - 前端面板（`SandboxPolicyPanel`）
 
-#### M26 插件 SDK 与节点市场（T144-T161）
+### M26 插件 SDK 与节点市场（T144-T161）
 
 - 插件 SDK 基础设施：`PluginNodeBase` 基类、`PluginManifest` 模型、manifest 校验器、打包校验器、本地调试运行器
 - 插件节点加载器（`PluginNodeLoader`）与执行器（`PluginNodeExecutor`）
@@ -531,7 +532,7 @@
 - REST API（`/api/v1/plugin-nodes`、`/api/v1/contributions`）
 - 前端面板（`PluginNodeManager`、`ContributionSubmitWizard`、`ContributionReviewBoard`）
 
-#### M27 SSO 与企业连接器（T162-T181）
+### M27 SSO 与企业连接器（T162-T181）
 
 - SSO 模型与枚举（`SsoProtocolType`）
 - 凭据加密器（`CredentialCipher`）——AES-GCM 对称加密
@@ -547,7 +548,7 @@
 - REST API（`/api/v1/auth/sso/**`、`/api/v1/connectors/enterprise/**`）
 - 前端面板（`SsoSettingsPanel`、`EnterpriseConnectorPanel`）
 
-#### M28 评估框架（T182-T191）
+### M28 评估框架（T182-T191）
 
 - 评估模型与枚举（`EvaluationType`、`EvaluationTaskState`）
 - 场景集管理（`ScenarioSetService`）
@@ -558,7 +559,7 @@
 - REST API（`/api/v1/evaluation/**`）
 - 前端面板（`EvaluationDashboard`）
 
-#### M29 语义索引发现与收尾（T192-T203）
+### M29 语义索引发现与收尾（T192-T203）
 
 - 语义发现模型与枚举（`DescriptionSource`）
 - 关键词倒排索引（`KeywordIndex`）——BM25 评分
@@ -570,24 +571,18 @@
 - 端到端集成测试与兼容性回归测试
 - 8 份阶段文档
 
-#### 前端管理后台入口
+### 前端管理后台入口
 
 - `AdminConsole` 管理后台根组件，聚合 phase3/phase4 全部 12 个治理与管理面板
 - `App.tsx` 添加画布编辑器 ↔ 管理后台视图切换
 
-### 修复
+### 收尾清理
 
 - `.env.example` 中 `TOKEN_SIGNING_SECRET` 占位符笔误（`change-me-token-secretF` → `change-me-token-secret`）
 - `debug_runner.py` 移除不优雅的 `if False else` 条件表达式
 - `sso_router.py` 移除未使用的 `HTTPException` 导入
 
----
-
-## [1.3.5] - 2026-09-24
-
-### 新增
-
-#### 偏差修正（T80-T129）
+### 偏差修正（T80-T129）
 
 - ABAC 属性策略引擎扩展（属性求值器、策略仓储、策略引擎、拦截器）
 - 墓碑与被遗忘权（GDPR 合规删除、墓碑服务、降级响应）
@@ -596,13 +591,7 @@
 - NL 自然语言编排（意图解析器、NL 编排服务、模板生成器）
 - 兼容性回归测试套件
 
----
-
-## [1.3.0] - 2026-09-24
-
-### 新增
-
-#### M19-M24 生产治理（T46-T79）
+### M19-M24 生产治理（T46-T79）
 
 - 多租户 RBAC 与组织树
 - 计量与计费（令牌计量、预算控制、成本仪表盘）
@@ -611,13 +600,7 @@
 - 拦截器链（鉴权→ABAC→租户隔离→审计→配额→预算→调度）
 - 治理 REST API 与前端面板（`GovernanceDashboard`）
 
----
-
-## [1.2.0] - 2026-09-24
-
-### 新增
-
-#### 引擎增强（T24-T45）
+### 引擎增强（T24-T45）
 
 - 回滚与重放机制
 - 实时数据订阅
@@ -627,13 +610,7 @@
 - 语义缓存
 - 执行可视化
 
----
-
-## [1.1.0] - 2026-09-24
-
-### 新增
-
-#### 核心引擎（T1-T23）
+### 核心引擎（T1-T23）
 
 - YAML 声明式工作流定义与解析
 - 工作流图拓扑校验与编译
@@ -656,12 +633,13 @@
 
 ## 已知限制
 
-- SSO 企业身份为 **experimental**：SAML/OIDC 适配器为骨架，验签能力未生产验证
-  （roadmap S2 范围）
+- SSO 企业身份：SAML（xmlsec 响应级/断言级验签）与 OIDC（PyJWT 双源 + 算法白名单）
+  真实验签与防重放已落地（2026-11-23 S2 批收口，`[sso]` runtime profile，摘 experimental）；
+  生产环境验证待试点客户
 - LangGraph 双运行时为**严格子集**：并行扇出、HITL、回滚重放等五类场景在子集外，
   由内置图状态机引擎执行（见 `docs/langgraph-equivalence-matrix.md`）
 - 企业连接器（CRM/ERP/OA）为骨架实现，需按实际系统适配
 - 容器隔离运行时为接口预留，需对接实际容器运行时
 - 向量索引外部后端为接口预留，需对接实际向量数据库
-- 前端 `npm run build` 受 `tsc --noEmit` 门控：13 基线错误清零前（roadmap A4），
-  生产构建路径以 `vite build` 口径为准
+- 前端 `npm run build` = `tsc --noEmit && vite build`：13 基线错误已清零
+  （2026-11-25 起各批权威门禁实测 exit 0），构建全链可用
